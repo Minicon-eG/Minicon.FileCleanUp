@@ -22,4 +22,3 @@ public sealed class FileCleanUpService(
         return new CleanupRun(snapshot, fileSystem, timeProvider, auditJournal, logger, retryJitter ?? new RandomRetryJitter(), cancellationToken, directory => new LocalAuditJournal(directory, fileSystem, timeProvider)).Execute();
     }
 }
-
