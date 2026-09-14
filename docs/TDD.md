@@ -58,3 +58,9 @@ Run:
 dotnet test -c Release
 python scripts/package-smoke.py
 ```
+
+## Production-hardening red → green increments
+
+Observed failing before implementation: lost initialized journal; complete-frame truncation; segment rotation/replay; replacement with changed size but identical timestamp; directory changed into a reparse point during audit; null audit configuration with logging; host-state overlap; oversized frame rejection; structured retry attempt/delay fields; strict global retry deadline; embedded double-star rejection; concurrent journal appends; protected host path aliases.
+
+Review removed a mock-only zero-size fallback from production and completed the external filesystem test doubles. Additional qualification tests cover a 100,000-file synthetic dry run and actual process kill/restart through the public journal boundary. These qualify existing behavior; they are not represented as newly developed red/green features. Windows acceptance runs against disposable real SMB shares, file locks, ACLs and junctions.
