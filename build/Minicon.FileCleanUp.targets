@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <MiniconFileCleanUpCopyDocumentation Condition="'$(MiniconFileCleanUpCopyDocumentation)' == ''">true</MiniconFileCleanUpCopyDocumentation>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(MiniconFileCleanUpCopyDocumentation)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)../docs/index.html"
+          Link="docs/Minicon.FileCleanUp/index.html"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/Minicon.FileCleanUp.Console/Minicon.FileCleanUp.Console.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Minicon.FileCleanUp/Minicon.FileCleanUp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Minicon.FileCleanUp.Tests/Minicon.FileCleanUp.Tests.csproj" />
+  </Folder>
+</Solution>
