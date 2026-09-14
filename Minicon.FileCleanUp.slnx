@@ -3,6 +3,10 @@
     <Project Path="samples/Minicon.FileCleanUp.Console/Minicon.FileCleanUp.Console.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Minicon.FileCleanUp.Domain/Minicon.FileCleanUp.Domain.csproj" />
+    <Project Path="src/Minicon.FileCleanUp.Core/Minicon.FileCleanUp.Core.csproj" />
+    <Project Path="src/Minicon.FileCleanUp.Infrastructure/Minicon.FileCleanUp.Infrastructure.csproj" />
+
     <Project Path="src/Minicon.FileCleanUp/Minicon.FileCleanUp.csproj" />
   </Folder>
   <Folder Name="/tests/">

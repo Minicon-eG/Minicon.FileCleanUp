@@ -26,4 +26,9 @@
     <ProjectReference Include="..\..\src\Minicon.FileCleanUp\Minicon.FileCleanUp.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../src/Minicon.FileCleanUp.Domain/Minicon.FileCleanUp.Domain.csproj" />
+    <ProjectReference Include="../../src/Minicon.FileCleanUp.Core/Minicon.FileCleanUp.Core.csproj" />
+    <ProjectReference Include="../../src/Minicon.FileCleanUp.Infrastructure/Minicon.FileCleanUp.Infrastructure.csproj" />
+  </ItemGroup>
 </Project>

@@ -45,7 +45,8 @@ with tempfile.TemporaryDirectory(prefix="minicon-host-", dir=repo / "artifacts")
     # The probe uses the public package boundary and is killed without Dispose/finally.
     probe = work / "probe"
     run("dotnet", "new", "console", "-o", str(probe), "--framework", "net10.0")
-    run("dotnet", "add", str(probe / "probe.csproj"), "reference", str(repo / "src/Minicon.FileCleanUp/Minicon.FileCleanUp.csproj"))
+    for name in ["Minicon.FileCleanUp", "Minicon.FileCleanUp.Domain", "Minicon.FileCleanUp.Core", "Minicon.FileCleanUp.Infrastructure"]:
+        run("dotnet", "add", str(probe / "probe.csproj"), "reference", str(repo / "src" / name / f"{name}.csproj"))
     (probe / "Program.cs").write_text('''using Minicon.FileCleanUp;
 using System.IO.Abstractions;
 using var journal = new LocalAuditJournal(args[0], new FileSystem(), maxSegmentBytes: 1024);

@@ -64,4 +64,3 @@ public sealed class CleanupResult
     public Guid RunId { get; } = Guid.NewGuid(); public CleanupStatus Status { get; internal set; }
     public CleanupStatistics Statistics { get; } = new();
 }
-public interface IFileCleanUpService { Task<CleanupResult> RunAsync(CancellationToken cancellationToken = default); }

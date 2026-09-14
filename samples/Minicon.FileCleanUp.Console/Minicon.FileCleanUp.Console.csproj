@@ -22,4 +22,9 @@
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="../../docs/index.html" Link="docs/Minicon.FileCleanUp/index.html" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Minicon.FileCleanUp.Domain/Minicon.FileCleanUp.Domain.csproj" />
+    <ProjectReference Include="../../src/Minicon.FileCleanUp.Core/Minicon.FileCleanUp.Core.csproj" />
+    <ProjectReference Include="../../src/Minicon.FileCleanUp.Infrastructure/Minicon.FileCleanUp.Infrastructure.csproj" />
+  </ItemGroup>
 </Project>

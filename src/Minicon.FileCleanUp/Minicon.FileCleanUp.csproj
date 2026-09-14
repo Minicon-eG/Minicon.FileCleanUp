@@ -33,4 +33,17 @@
     <None Include="../../README.md" Pack="true" PackagePath="/" />
     <None Include="../../LICENSE" Pack="true" PackagePath="/" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Minicon.FileCleanUp.Domain/Minicon.FileCleanUp.Domain.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../Minicon.FileCleanUp.Core/Minicon.FileCleanUp.Core.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../Minicon.FileCleanUp.Infrastructure/Minicon.FileCleanUp.Infrastructure.csproj" PrivateAssets="all" />
+  </ItemGroup>
+  <PropertyGroup>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeLayerAssemblies</TargetsForTfmSpecificBuildOutput>
+  </PropertyGroup>
+  <Target Name="IncludeLayerAssemblies" DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.ReferenceSourceTarget)' == 'ProjectReference'" />
+    </ItemGroup>
+  </Target>
 </Project>

@@ -1,0 +1,22 @@
+using System.Runtime.CompilerServices;
+using Minicon.FileCleanUp;
+
+[assembly: TypeForwardedTo(typeof(AuditRecord))]
+[assembly: TypeForwardedTo(typeof(AuditMode))]
+[assembly: TypeForwardedTo(typeof(AuditOptions))]
+[assembly: TypeForwardedTo(typeof(ResilienceOptions))]
+[assembly: TypeForwardedTo(typeof(CleanupOptions))]
+[assembly: TypeForwardedTo(typeof(CleanupRuleOptions))]
+[assembly: TypeForwardedTo(typeof(SelectorKind))]
+[assembly: TypeForwardedTo(typeof(DirectorySelector))]
+[assembly: TypeForwardedTo(typeof(CleanupStatistics))]
+[assembly: TypeForwardedTo(typeof(CleanupStatus))]
+[assembly: TypeForwardedTo(typeof(CleanupResult))]
+[assembly: TypeForwardedTo(typeof(CleanupConfigurationValidation))]
+[assembly: TypeForwardedTo(typeof(IFileCleanUpService))]
+[assembly: TypeForwardedTo(typeof(ICleanupAuditJournal))]
+[assembly: TypeForwardedTo(typeof(ICleanupAuditRecoveryService))]
+[assembly: TypeForwardedTo(typeof(IRetryJitter))]
+[assembly: TypeForwardedTo(typeof(RandomRetryJitter))]
+[assembly: TypeForwardedTo(typeof(LocalAuditJournal))]
+[assembly: TypeForwardedTo(typeof(CleanupAuditRecoveryService))]
