@@ -12,7 +12,7 @@ This is a working development preview, not a production-certified release. The H
 - Per-run and per-rule statistics, correlated structured logging and Seq sample integration.
 - Local exclusive journal with framed records, SHA-256 chain checks, flush-to-disk requests, pending-path protection on restart and explicit recovery acknowledgement.
 - NuGet packing, offline HTML copy for build/publish and an opt-out; real fresh-consumer package smoke test.
-- Cross-platform CI configuration. Only the actual CI results, not its configuration, establish which environments passed.
+- 47 tests, sample build and fresh-consumer package smoke passed on Windows, Linux and macOS: [verified CI run](https://github.com/Minicon-eG/Minicon.FileCleanUp/actions/runs/34815893482). This does not replace the SMB/power-loss acceptance checks below.
 
 ## Remaining acceptance / deliberate preview limitations
 
