@@ -363,13 +363,19 @@ public class CleanupTests
             .Returns(fs.File.GetLastWriteTimeUtc(FilePath)).Returns(fs.File.GetLastWriteTimeUtc(FilePath));
         var proxy = new Moq.Mock<System.IO.Abstractions.IFileSystem>(); proxy.SetupGet(f => f.Directory).Returns(fs.Directory); proxy.SetupGet(f => f.File).Returns(file.Object); proxy.SetupGet(f => f.Path).Returns(fs.Path); proxy.SetupGet(f => f.FileInfo).Returns(fs.FileInfo);
         var clock = new CoordinatedTimeProvider(Now);
-        var task = new FileCleanUpService(Options(), proxy.Object, clock).RunAsync();
+        var logger = new RecordingLogger<FileCleanUpService>();
+        var task = new FileCleanUpService(Options(), proxy.Object, clock, logger: logger).RunAsync();
         await clock.Complete(task);
         Assert.True(task.IsCompleted);
         var result = await task;
         Assert.Equal(CleanupStatus.Succeeded, result.Status);
         Assert.Equal(1, result.Statistics.CandidateFiles);
         Assert.Equal(1, result.Statistics.RetryCount);
+        var retry = Assert.Single(logger.Events, e => Equals(e["EventType"], "FileSystemRetryScheduled"));
+        Assert.Equal(1, retry["AttemptNumber"]);
+        Assert.InRange((double)retry["RetryDelaySeconds"]!, 1.6, 2.4);
+        Assert.Equal(6, retry["MaxAttempts"]);
+        Assert.Equal(0, retry["SelectorIndex"]);
     }
     [Fact]
     public async Task Configured_delete_delay_is_cancellable_between_files()
@@ -411,5 +417,51 @@ public class CleanupTests
         Assert.Equal(2, result.Statistics.CandidateFiles);
         Assert.Equal(1, result.RuleStatistics["Exports"].CandidateFiles);
         Assert.Equal(1, result.RuleStatistics["Other"].CandidateFiles);
+    }
+    [Fact]
+    public async Task A_file_replaced_with_different_size_but_same_timestamp_is_preserved()
+    {
+        var fs = Files(); var options = Options(false); options.Audit.Mode = AuditMode.Required;
+        var journal = new Moq.Mock<ICleanupAuditJournal>();
+        journal.Setup(j => j.GetPending()).Returns(Array.Empty<AuditRecord>());
+        journal.Setup(j => j.Append(Moq.It.Is<AuditRecord>(r => r.Type == "DeleteIntent")))
+            .Callback(() => fs.AddFile(FilePath, new MockFileData("replacement with other length")
+            { LastWriteTime = new DateTimeOffset(2026, 5, 1, 0, 0, 0, TimeSpan.Zero) }));
+        var result = await new FileCleanUpService(options, fs, new FakeTimeProvider(Now), journal.Object).RunAsync();
+        Assert.True(fs.File.Exists(FilePath));
+        Assert.Equal(0, result.Statistics.FilesDeleted);
+        Assert.Equal(1, result.Statistics.SkippedByReason["ChangedSinceEvaluation"]);
+    }
+    [Fact]
+    public async Task Directory_changed_to_reparse_point_during_audit_is_not_deleted()
+    {
+        var fs = Files(); var options = Options(false);
+        options.Rules[0].Recursive = true; options.Rules[0].RemoveEmptyDirectories = true;
+        var child = Path.Combine(Root, "empty"); fs.Directory.CreateDirectory(child);
+        options.Audit.Mode = AuditMode.Required;
+        var journal = new Moq.Mock<ICleanupAuditJournal>();
+        journal.Setup(j => j.GetPending()).Returns(Array.Empty<AuditRecord>());
+        journal.Setup(j => j.Append(Moq.It.Is<AuditRecord>(r => r.Type == "DeleteIntent" && r.IsDirectory)))
+            .Callback(() => fs.File.SetAttributes(child, FileAttributes.Directory | FileAttributes.ReparsePoint));
+        var result = await new FileCleanUpService(options, fs, new FakeTimeProvider(Now), journal.Object).RunAsync();
+        Assert.True(fs.Directory.Exists(child));
+        Assert.Equal(0, result.Statistics.DirectoriesDeleted);
+    }
+    [Fact]
+    public async Task Null_audit_settings_are_a_configuration_error_even_with_logging_enabled()
+    {
+        var fs = Files(); var options = Options(false); options.Audit = null!;
+        var result = await new FileCleanUpService(options, fs, new FakeTimeProvider(Now), logger: new RecordingLogger<FileCleanUpService>()).RunAsync();
+        Assert.Equal(CleanupStatus.InvalidConfiguration, result.Status);
+        Assert.True(fs.File.Exists(FilePath));
+    }
+    [Fact]
+    public async Task A_host_state_directory_inside_a_search_root_prevents_all_deletion()
+    {
+        var fs = Files(); var options = Options(false);
+        options.ProtectedDirectories = [Path.Combine(Root, "state")];
+        var result = await new FileCleanUpService(options, fs, new FakeTimeProvider(Now)).RunAsync();
+        Assert.Equal(CleanupStatus.InvalidConfiguration, result.Status);
+        Assert.True(fs.File.Exists(FilePath));
     }
 }

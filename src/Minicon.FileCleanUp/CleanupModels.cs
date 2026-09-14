@@ -12,6 +12,7 @@ public sealed class ResilienceOptions
 }
 public sealed class CleanupOptions
 {
+    public List<string> ProtectedDirectories { get; set; } = [];
     public int MinimumRetentionDays { get; set; } = 14;
     public int DeleteDelayMilliseconds { get; set; }
     public ResilienceOptions Resilience { get; set; } = new();

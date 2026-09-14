@@ -229,7 +229,7 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
         await Read(() => { EnsureSafePath(fs.Path.GetDirectoryName(path)!); return true; }, path);
         updated = await Read(() => fs.File.GetLastWriteTimeUtc(path), path);
         attributes = await Read(() => fs.File.GetAttributes(path), path);
-        if (updated != observed || (attributes & (FileAttributes.ReadOnly | FileAttributes.ReparsePoint)) != 0)
+        if (updated != observed || (fs.FileInfo is not null && await Read(() => fs.FileInfo.New(path).Length, path) != bytes) || (attributes & (FileAttributes.ReadOnly | FileAttributes.ReparsePoint)) != 0)
         { Audit(intent with { Type = "SkippedAfterRevalidation" }); Skip(path, "ChangedSinceEvaluation"); return; }
         Event("FileDeleteStarted", 2000, path: path, record: intent);
         Count(s => s.DeleteAttempts++);
@@ -242,7 +242,7 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
                 if (attempt++ > 0)
                 {
                     EnsureSafePath(fs.Path.GetDirectoryName(path)!);
-                    if (fs.File.GetLastWriteTimeUtc(path) != observed || (fs.File.GetAttributes(path) & (FileAttributes.ReadOnly | FileAttributes.ReparsePoint)) != 0)
+                    if (fs.File.GetLastWriteTimeUtc(path) != observed || (fs.FileInfo is not null && fs.FileInfo.New(path).Length != bytes) || (fs.File.GetAttributes(path) & (FileAttributes.ReadOnly | FileAttributes.ReparsePoint)) != 0)
                     { Audit(intent with { Type = "SkippedAfterRevalidation" }); return false; }
                     Audit(intent with { AttemptNumber = attempt });
                     Event("FileDeleteStarted", 2000, path: path, record: intent with { AttemptNumber = attempt });
@@ -288,7 +288,20 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
         if (options.DryRun)
         { virtuallyRemoved.Add(path); Count(s => s.DirectoriesWouldBeDeleted++); Audit(intent with { Type = "WouldDelete" }); Event("DirectoryWouldBeDeleted", 2102, path: path, record: intent); return; }
         await DelayMutation(); await Read(() => { EnsureSafePath(path); return true; }, path);
-        Audit(intent); Event("DirectoryDeleteStarted", 2100, path: path, record: intent);
+        Audit(intent);
+        try
+        {
+            token.ThrowIfCancellationRequested();
+            await Read(() => { EnsureSafePath(path); return true; }, path);
+            if ((await Read(() => fs.Directory.EnumerateFileSystemEntries(path).ToArray(), path)).Length != 0)
+            {
+                Audit(intent with { Type = "SkippedAfterRevalidation" });
+                Skip(path, "ChangedSinceEvaluation", true); return;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
+        { Audit(intent with { Type = "SkippedAfterRevalidation" }); throw; }
+        Event("DirectoryDeleteStarted", 2100, path: path, record: intent);
         try { fs.Directory.Delete(path, false); }
         catch (UnauthorizedAccessException ex) { Audit(intent with { Type = "Failed" }); Error(path, ex); return; }
         catch (IOException ex) { pending.Add(intent); Audit(intent with { Type = "OutcomeUnknown" }); Error(path, ex); Event("DeletionOutcomeUnknown", 3204, ex, path, intent); return; }
@@ -302,7 +315,7 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
         if (!ConfigurationValidator.Contains(selector.Root, path)) throw new IOException("Path escaped the search root.");
         var relative = fs.Path.GetRelativePath(selector.Root, path);
         for (var i = 0; i < rule.ExcludeDirectories.Count; i++)
-            if (DirectoryPatterns.Matches(rule.ExcludeDirectories[i], relative)) { Event("DirectorySkipped", 2103, path: path, reason: "Excluded"); return true; }
+            if (DirectoryPatterns.Matches(rule.ExcludeDirectories[i], relative)) { Event("DirectorySkipped", 2103, path: path, reason: "Excluded", exclusionIndex: i); return true; }
         return false;
     }
     private Task<bool> IsLink(string path) => Read(() => (fs.File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0, path);
@@ -334,7 +347,7 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
                 try
                 {
                     var value = operation();
-                    if (started.HasValue) Event("FileSystemRecoverySucceeded", 3201, path: path);
+                    if (started.HasValue) Event("FileSystemRecoverySucceeded", 3201, path: path, attemptNumber: attempt, retryElapsedSeconds: clock.GetElapsedTime(started.Value).TotalSeconds);
                     return value;
                 }
                 catch (IOException ex) when (mutation ? (ex.HResult & 0xffff) is 32 or 33 : IsTransient(ex) || (missingRoot && ex is FileNotFoundException or DirectoryNotFoundException))
@@ -342,9 +355,9 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
                     started ??= clock.GetTimestamp();
                     var elapsed = clock.GetElapsedTime(started.Value).TotalSeconds;
                     var remaining = Math.Min(options.Resilience.MaxRetryElapsedSecondsPerOperation - elapsed, options.Resilience.MaxRetryElapsedSecondsPerRun - retrySeconds - elapsed);
-                    if (attempt >= options.Resilience.MaxAttempts || remaining <= 0) { Event("FileSystemRetryExhausted", 3202, ex, path); throw; }
+                    if (attempt >= options.Resilience.MaxAttempts || remaining <= 0) { Event("FileSystemRetryExhausted", 3202, ex, path, attemptNumber: attempt, retryElapsedSeconds: elapsed); throw; }
                     var delay = Math.Min(remaining, Math.Min(options.Resilience.MaxDelaySeconds, options.Resilience.InitialDelaySeconds * Math.Pow(2, Math.Min(attempt - 1, 30)) * jitter.NextFactor()));
-                    Count(s => s.RetryCount++); Event("FileSystemRetryScheduled", 3200, ex, path);
+                    Count(s => s.RetryCount++); Event("FileSystemRetryScheduled", 3200, ex, path, attemptNumber: attempt, retryDelaySeconds: delay, retryElapsedSeconds: elapsed);
                     await Task.Delay(TimeSpan.FromSeconds(delay), clock, token);
                     if (clock.GetElapsedTime(started.Value).TotalSeconds >= options.Resilience.MaxRetryElapsedSecondsPerOperation) throw;
                 }
@@ -361,7 +374,7 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
     private void Audit(AuditRecord record)
     {
         if (options.Audit.Mode != AuditMode.Required) return;
-        try { (journal ?? throw new IOException("Audit journal unavailable.")).Append(record); }
+        try { (journal ?? throw new IOException("Audit journal unavailable.")).Append(record with { TimestampUtc = clock.GetUtcNow() }); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         { auditFailed = true; throw new AuditUnavailableException(ex); }
     }
@@ -383,7 +396,7 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
     {
         result.Status = CleanupStatus.CompletedWithErrors; Count(s => s.ErrorCount++); incomplete.Add(path); Event("FileSystemOperationFailed", 3000, ex, path);
     }
-    private void Event(string type, int id, Exception? error = null, string? path = null, AuditRecord? record = null, string? reason = null)
+    private void Event(string type, int id, Exception? error = null, string? path = null, AuditRecord? record = null, string? reason = null, int? attemptNumber = null, double? retryDelaySeconds = null, double? retryElapsedSeconds = null, int? exclusionIndex = null)
     {
         if (logger is null) return;
         var properties = new Dictionary<string, object?>
@@ -399,7 +412,18 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
             ["SelectorKind"] = currentSelector?.Kind.ToString(),
             ["SelectorPattern"] = currentSelector?.Pattern,
             ["OperationId"] = record?.OperationId,
-            ["AttemptNumber"] = record?.AttemptNumber,
+            ["AttemptNumber"] = attemptNumber ?? record?.AttemptNumber,
+            ["EventTimestampUtc"] = clock.GetUtcNow(),
+            ["RunStartedUtc"] = result.StartedUtc,
+            ["SelectorIndex"] = currentSelector is null ? null : currentRule?.Directories.IndexOf(currentSelector),
+            ["ExclusionIndex"] = exclusionIndex,
+            ["RetryDelaySeconds"] = retryDelaySeconds,
+            ["RetryElapsedSeconds"] = retryElapsedSeconds,
+            ["MaxAttempts"] = options.Resilience?.MaxAttempts,
+            ["UnknownDeletionOutcomes"] = result.Statistics.UnknownDeletionOutcomes,
+            ["DirectoriesDeleted"] = result.Statistics.DirectoriesDeleted,
+            ["CandidateBytes"] = result.Statistics.CandidateBytes,
+            ["DeletedFileBytes"] = result.Statistics.DeletedFileBytes,
             ["ReasonCode"] = reason ?? record?.Reason,
             ["EvaluatedTimestampUtc"] = record?.EvaluatedTimestampUtc,
             ["CutoffUtc"] = record?.CutoffUtc,
@@ -412,7 +436,7 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
             ["ErrorCount"] = result.Statistics.ErrorCount,
             ["RetryCount"] = result.Statistics.RetryCount,
             ["Duration"] = result.Duration,
-            ["AuditMode"] = options.Audit.Mode.ToString(),
+            ["AuditMode"] = options.Audit?.Mode.ToString(),
             ["ConfigFingerprint"] = result.ConfigFingerprint,
             ["NativeErrorCode"] = error is IOException io ? io.HResult & 0xffff : null
         };

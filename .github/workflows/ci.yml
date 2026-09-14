@@ -22,3 +22,8 @@ jobs:
       - run: dotnet test -c Release --logger "trx;LogFileName=tests.trx"
       - run: dotnet build samples/Minicon.FileCleanUp.Console -c Release
       - run: python scripts/package-smoke.py
+      - run: python scripts/host-smoke.py
+      - name: Windows storage acceptance
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/windows-storage-smoke.ps1

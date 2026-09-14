@@ -19,6 +19,18 @@ var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
 });
 // Register the customer's configuration provider here, before AddFileCleanUp.
 var stateDirectory = Path.GetFullPath(builder.Configuration["CleanupHost:StateDirectory"] ?? Path.Combine(AppContext.BaseDirectory, "state"));
+CleanupOptions cleanupOptions;
+try
+{
+    cleanupOptions = builder.Configuration.GetSection("FileCleanUp").Get<CleanupOptions>(o => o.ErrorOnUnknownConfiguration = true) ?? new();
+    cleanupOptions.ProtectedDirectories.Add(stateDirectory);
+    cleanupOptions.Validate(new FileSystem());
+}
+catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NullReferenceException)
+{
+    System.Console.Error.WriteLine($"ConfigurationInvalid: {ex.Message}");
+    return 2;
+}
 Directory.CreateDirectory(stateDirectory);
 var logConfiguration = new LoggerConfiguration().MinimumLevel.Information().Enrich.FromLogContext()
     .Enrich.WithProperty("Application", "Minicon.FileCleanUp.Console")
@@ -28,7 +40,7 @@ if (builder.Configuration["Seq:ServerUrl"] is { Length: > 0 } seq)
     logConfiguration.WriteTo.Seq(seq, apiKey: builder.Configuration["Seq:ApiKey"], bufferBaseFilename: Path.Combine(stateDirectory, "seq-buffer"));
 Log.Logger = logConfiguration.CreateLogger();
 builder.Services.AddSerilog(Log.Logger, dispose: false);
-builder.Services.AddFileCleanUp(builder.Configuration.GetSection("FileCleanUp"));
+builder.Services.AddFileCleanUp(cleanupOptions);
 try
 {
     FileStream applicationLock;

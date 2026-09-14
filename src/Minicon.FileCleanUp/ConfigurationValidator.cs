@@ -25,6 +25,13 @@ internal static class ConfigurationValidator
                 if (!fs.Path.IsPathFullyQualified(selector.Root)) throw new ArgumentException("Root must be absolute.");
                 var root = fs.Path.GetFullPath(selector.Root).TrimEnd(fs.Path.DirectorySeparatorChar);
                 if (root == fs.Path.GetPathRoot(selector.Root)!.TrimEnd(fs.Path.DirectorySeparatorChar)) throw new ArgumentException("Volume/share roots are forbidden.");
+                foreach (var protectedPath in options.ProtectedDirectories)
+                {
+                    if (!fs.Path.IsPathFullyQualified(protectedPath)) throw new ArgumentException("ProtectedDirectories must be absolute.");
+                    var canonical = fs.Path.TrimEndingDirectorySeparator(fs.Path.GetFullPath(protectedPath));
+                    if (Contains(root, canonical) || Contains(canonical, root))
+                        throw new ArgumentException("Search roots must not overlap protected host directories.");
+                }
                 foreach (var existing in roots)
                     if ((Contains(existing.Path, root) || Contains(root, existing.Path)) && !(existing.Rule == rule.Name && existing.Path == root))
                         throw new ArgumentException("Overlapping search roots.");
@@ -55,5 +62,17 @@ internal static class ConfigurationValidator
         if (selector.Kind != SelectorKind.Regex && (selector.Pattern.StartsWith('/') || selector.Pattern.StartsWith('\\') || selector.Pattern.Contains(':') || selector.Pattern.Replace('\\', '/').Split('/').Contains("..")))
             throw new ArgumentException("Pattern must stay inside the root.");
         _ = DirectoryPatterns.Matches(selector, "validation");
+    }
+}
+
+/// <summary>Allows a host to reject unsafe settings before creating its logs or other state.</summary>
+public static class CleanupConfigurationValidation
+{
+    public static void Validate(this CleanupOptions options, IFileSystem fileSystem)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(fileSystem);
+        try { ConfigurationValidator.Validate(options, fileSystem); }
+        catch (NullReferenceException ex) { throw new ArgumentException("Configuration sections and collections must not be null.", nameof(options), ex); }
     }
 }
