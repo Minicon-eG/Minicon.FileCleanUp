@@ -1,6 +1,6 @@
-# Implementation status — 0.1.0-preview.2
+# Implementation status — 1.0.0
 
-This is a working development preview, not a production-certified release. The HTML handbook is the target concept; this file records the actual delivery boundary.
+This file records the scope of the first stable package release. Customer-specific Windows, share, identity and Seq acceptance is a deployment responsibility, separate from the package release. Documented extensions are not part of the 1.0.0 contract.
 
 ## Implemented
 
@@ -32,7 +32,7 @@ This is a working development preview, not a production-certified release. The H
 - Journal archives are retained locally and replayed on startup. Disk use/startup time grow; there is no automatic deletion, compaction or corrupt-tail repair. Corruption fails closed. Never remove archives or restore a stale journal to bypass pending operations.
 - Path-based deletion is not a file-identity transaction. No distributed lock, rollback or protection against hostile concurrent path replacement is claimed.
 - Detailed additional target-concept events such as JournalId/JournalSequence in Seq and automatic missing-file reconciliation are not implemented. The HTML distinguishes delivered behavior from these extensions.
-- No NuGet.org publication or customer production deployment has occurred. The version remains a hardened preview pending customer acceptance.
+- No NuGet.org publication or customer production deployment has occurred. Version 1.0.0 is prepared for publication; customer acceptance remains separate from package versioning.
 
 ## How to evaluate
 

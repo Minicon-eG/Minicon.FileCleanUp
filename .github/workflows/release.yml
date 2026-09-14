@@ -1,0 +1,51 @@
+name: Publish NuGet release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nuget-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Validate release tag and NuGet identity
+        shell: pwsh
+        env:
+          RELEASE_REF: ${{ github.ref }}
+          NUGET_USER: ${{ vars.NUGET_USER }}
+        run: |
+          [xml]$project = Get-Content src/Minicon.FileCleanUp/Minicon.FileCleanUp.csproj
+          $version = [string]$project.Project.PropertyGroup.Version
+          if ($env:RELEASE_REF -ne "refs/tags/v$version") { throw 'Run this workflow on the matching version tag, never a branch.' }
+          if ([string]::IsNullOrWhiteSpace($env:NUGET_USER)) { throw 'Set the NUGET_USER repository variable to the NuGet.org profile name and configure Trusted Publishing.' }
+          "RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+      - run: dotnet test -c Release --logger "trx;LogFileName=release-tests.trx"
+      - run: python scripts/package-smoke.py
+      - run: python scripts/host-smoke.py
+      - name: Windows storage acceptance
+        shell: pwsh
+        run: ./scripts/windows-storage-smoke.ps1
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ vars.NUGET_USER }}
+      - name: Publish the verified package
+        shell: pwsh
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push "artifacts/packages/Minicon.FileCleanUp.$env:RELEASE_VERSION.nupkg" --api-key "$env:NUGET_API_KEY" --source https://api.nuget.org/v3/index.json

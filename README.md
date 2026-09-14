@@ -2,7 +2,7 @@
 
 .NET 10 library for age-based file cleanup, designed for customer-owned console applications.
 
-**Hardened preview for Windows and UNC network shares. Customer acceptance remains required.** The HTML handbook describes the broader target specification. See [implementation status](docs/IMPLEMENTATION-STATUS.md) for the exact tested scope and remaining work. File deletion is permanent.
+**Version 1.0.0 for Windows and UNC network shares.** Customer-specific deployment and acceptance remain the host operator’s responsibility. The HTML handbook describes the broader target specification. See [implementation status](docs/IMPLEMENTATION-STATUS.md) for the exact tested scope and remaining work. File deletion is permanent.
 
 ```csharp
 builder.Services.AddFileCleanUp(builder.Configuration.GetSection("FileCleanUp"));

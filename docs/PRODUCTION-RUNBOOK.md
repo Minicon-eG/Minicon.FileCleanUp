@@ -1,6 +1,6 @@
 # Windows / UNC production runbook
 
-Package: `Minicon.FileCleanUp`, hardened preview `0.1.0-preview.2`.
+Package: `Minicon.FileCleanUp`, version `1.0.0`.
 
 The supported deployment being prepared is a customer-owned Windows console on .NET 10, accessing UNC shares. This runbook distinguishes automated evidence from customer acceptance. Do not equate a green CI run with validation of a particular NAS, service account, antivirus policy or Seq server.
 
