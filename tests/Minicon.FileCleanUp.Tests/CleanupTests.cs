@@ -157,9 +157,9 @@ public class CleanupTests
         proxy.SetupGet(f => f.Directory).Returns(directory.Object);
         proxy.SetupGet(f => f.File).Returns(fs.File);
         proxy.SetupGet(f => f.Path).Returns(fs.Path);
-        var clock = new FakeTimeProvider(Now);
+        var clock = new CoordinatedTimeProvider(Now);
         var task = new FileCleanUpService(Options(false), proxy.Object, clock).RunAsync();
-        for (var i = 0; i < 10000 && !task.IsCompleted; i++) { clock.Advance(TimeSpan.FromMilliseconds(10)); await Task.Yield(); }
+        await clock.Complete(task);
         Assert.True(task.IsCompleted);
         var result = await task;
         Assert.False(fs.File.Exists(FilePath));
@@ -179,9 +179,9 @@ public class CleanupTests
         proxy.SetupGet(f => f.Directory).Returns(directory.Object);
         proxy.SetupGet(f => f.File).Returns(fs.File);
         proxy.SetupGet(f => f.Path).Returns(fs.Path);
-        var clock = new FakeTimeProvider(Now);
+        var clock = new CoordinatedTimeProvider(Now);
         var task = new FileCleanUpService(Options(false), proxy.Object, clock).RunAsync();
-        for (var i = 0; i < 10000 && !task.IsCompleted; i++) { clock.Advance(TimeSpan.FromMilliseconds(10)); await Task.Yield(); }
+        await clock.Complete(task);
         Assert.True(task.IsCompleted);
         var result = await task;
         Assert.Equal(CleanupStatus.CompletedWithErrors, result.Status);
@@ -362,9 +362,9 @@ public class CleanupTests
         file.SetupSequence(f => f.GetLastWriteTimeUtc(FilePath)).Throws(new IOException("offline", unchecked((int)0x80070040)))
             .Returns(fs.File.GetLastWriteTimeUtc(FilePath)).Returns(fs.File.GetLastWriteTimeUtc(FilePath));
         var proxy = new Moq.Mock<System.IO.Abstractions.IFileSystem>(); proxy.SetupGet(f => f.Directory).Returns(fs.Directory); proxy.SetupGet(f => f.File).Returns(file.Object); proxy.SetupGet(f => f.Path).Returns(fs.Path); proxy.SetupGet(f => f.FileInfo).Returns(fs.FileInfo);
-        var clock = new FakeTimeProvider(Now);
+        var clock = new CoordinatedTimeProvider(Now);
         var task = new FileCleanUpService(Options(), proxy.Object, clock).RunAsync();
-        for (var i = 0; i < 10000 && !task.IsCompleted; i++) { clock.Advance(TimeSpan.FromMilliseconds(10)); await Task.Yield(); }
+        await clock.Complete(task);
         Assert.True(task.IsCompleted);
         var result = await task;
         Assert.Equal(CleanupStatus.Succeeded, result.Status);
@@ -392,9 +392,9 @@ public class CleanupTests
         var attempts = 0;
         file.Setup(f => f.Delete(FilePath)).Callback(() => { if (++attempts == 1) throw new IOException("sharing violation", unchecked((int)0x80070020)); fs.File.Delete(FilePath); });
         var proxy = new Moq.Mock<System.IO.Abstractions.IFileSystem>(); proxy.SetupGet(f => f.File).Returns(file.Object); proxy.SetupGet(f => f.Directory).Returns(fs.Directory); proxy.SetupGet(f => f.Path).Returns(fs.Path); proxy.SetupGet(f => f.FileInfo).Returns(fs.FileInfo);
-        var clock = new FakeTimeProvider(Now);
+        var clock = new CoordinatedTimeProvider(Now);
         var task = new FileCleanUpService(Options(false), proxy.Object, clock).RunAsync();
-        for (var i = 0; i < 10000 && !task.IsCompleted; i++) { clock.Advance(TimeSpan.FromMilliseconds(10)); await Task.Yield(); }
+        await clock.Complete(task);
         Assert.True(task.IsCompleted); var result = await task;
         Assert.False(fs.File.Exists(FilePath));
         Assert.Equal(1, result.Statistics.FilesDeleted);
