@@ -73,4 +73,14 @@ public class AuditTests
         using var reopened = new LocalAuditJournal(dir, fs);
         Assert.Single(reopened.GetPending());
     }
+    [Fact]
+    public void Concurrent_callers_do_not_corrupt_a_journal_session()
+    {
+        var fs = new System.IO.Abstractions.TestingHelpers.MockFileSystem();
+        var dir = Path.Combine(Path.GetTempPath(), "audit-concurrent"); fs.Directory.CreateDirectory(dir);
+        using (var journal = new LocalAuditJournal(dir, fs))
+            Parallel.For(0, 200, i => journal.Append(new() { Type = "DeleteIntent", OperationId = Guid.NewGuid(), Path = $"{i}.csv" }));
+        using var reopened = new LocalAuditJournal(dir, fs);
+        Assert.Equal(200, reopened.GetPending().Count);
+    }
 }

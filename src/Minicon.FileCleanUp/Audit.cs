@@ -25,6 +25,7 @@ public interface ICleanupAuditJournal : IDisposable
 }
 public sealed class LocalAuditJournal : ICleanupAuditJournal
 {
+    private readonly object sync = new();
     private FileSystemStream stream = null!;
     private readonly FileSystemStream sessionLock;
     private readonly string directory;
@@ -90,6 +91,10 @@ public sealed class LocalAuditJournal : ICleanupAuditJournal
     }
     public void Append(AuditRecord record)
     {
+        lock (sync) AppendCore(record);
+    }
+    private void AppendCore(AuditRecord record)
+    {
         if (poisoned) throw new IOException("Journal requires recovery after a failed append.");
         var payload = System.Text.Json.JsonSerializer.Serialize(record);
         var hash = Hash(sequence + 1, previousHash, payload);
@@ -111,7 +116,7 @@ public sealed class LocalAuditJournal : ICleanupAuditJournal
         }
         catch { poisoned = true; throw; }
     }
-    public IReadOnlyList<AuditRecord> GetPending() => pending.Values.ToArray();
+    public IReadOnlyList<AuditRecord> GetPending() { lock (sync) return pending.Values.ToArray(); }
     private void Track(AuditRecord record)
     {
         if (record.Type == "DeleteIntent") pending[record.OperationId] = record;
@@ -120,8 +125,11 @@ public sealed class LocalAuditJournal : ICleanupAuditJournal
     public void Acknowledge(Guid operationId, string @operator, string reason)
     {
         if (string.IsNullOrWhiteSpace(@operator) || string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("Operator and reason are required.");
-        var pending = GetPending().Single(x => x.OperationId == operationId);
-        Append(pending with { Type = "Acknowledged", Operator = @operator, Reason = reason, TimestampUtc = time.GetUtcNow() });
+        lock (sync)
+        {
+            var pending = GetPending().Single(x => x.OperationId == operationId);
+            Append(pending with { Type = "Acknowledged", Operator = @operator, Reason = reason, TimestampUtc = time.GetUtcNow() });
+        }
     }
     private void WriteCheckpoint()
     {
@@ -133,8 +141,11 @@ public sealed class LocalAuditJournal : ICleanupAuditJournal
     private static string Hash(long sequence, string previous, string payload) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(sequence.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + previous + ":" + payload)));
     public void Dispose()
     {
-        try { stream.Dispose(); }
-        finally { sessionLock.Dispose(); }
+        lock (sync)
+        {
+            try { stream.Dispose(); }
+            finally { sessionLock.Dispose(); }
+        }
     }
     private sealed record Frame(long Sequence, string PreviousHash, string Payload, string Hash);
 }

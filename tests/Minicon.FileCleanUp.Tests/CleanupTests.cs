@@ -156,7 +156,7 @@ public class CleanupTests
         var proxy = new Moq.Mock<System.IO.Abstractions.IFileSystem>();
         proxy.SetupGet(f => f.Directory).Returns(directory.Object);
         proxy.SetupGet(f => f.File).Returns(fs.File);
-        proxy.SetupGet(f => f.Path).Returns(fs.Path);
+        proxy.SetupGet(f => f.Path).Returns(fs.Path); proxy.SetupGet(f => f.FileInfo).Returns(fs.FileInfo);
         var clock = new CoordinatedTimeProvider(Now);
         var task = new FileCleanUpService(Options(false), proxy.Object, clock).RunAsync();
         await clock.Complete(task);
@@ -178,7 +178,7 @@ public class CleanupTests
         var proxy = new Moq.Mock<System.IO.Abstractions.IFileSystem>();
         proxy.SetupGet(f => f.Directory).Returns(directory.Object);
         proxy.SetupGet(f => f.File).Returns(fs.File);
-        proxy.SetupGet(f => f.Path).Returns(fs.Path);
+        proxy.SetupGet(f => f.Path).Returns(fs.Path); proxy.SetupGet(f => f.FileInfo).Returns(fs.FileInfo);
         var clock = new CoordinatedTimeProvider(Now);
         var task = new FileCleanUpService(Options(false), proxy.Object, clock).RunAsync();
         await clock.Complete(task);
@@ -322,7 +322,7 @@ public class CleanupTests
         var fs = Files(); var options = Options(false); options.Resilience.MaxAttempts = 1;
         var directory = new Moq.Mock<System.IO.Abstractions.IDirectory>();
         directory.Setup(d => d.EnumerateFiles(Root)).Throws(new IOException("offline", unchecked((int)0x80070040)));
-        var proxy = new Moq.Mock<System.IO.Abstractions.IFileSystem>(); proxy.SetupGet(f => f.Directory).Returns(directory.Object); proxy.SetupGet(f => f.File).Returns(fs.File); proxy.SetupGet(f => f.Path).Returns(fs.Path);
+        var proxy = new Moq.Mock<System.IO.Abstractions.IFileSystem>(); proxy.SetupGet(f => f.Directory).Returns(directory.Object); proxy.SetupGet(f => f.File).Returns(fs.File); proxy.SetupGet(f => f.Path).Returns(fs.Path); proxy.SetupGet(f => f.FileInfo).Returns(fs.FileInfo);
         using var cts = new CancellationTokenSource();
         var task = new FileCleanUpService(options, proxy.Object, new FakeTimeProvider(Now)).RunAsync(cts.Token);
         var completedWithoutWaiting = task.IsCompleted;
@@ -460,6 +460,47 @@ public class CleanupTests
     {
         var fs = Files(); var options = Options(false);
         options.ProtectedDirectories = [Path.Combine(Root, "state")];
+        var result = await new FileCleanUpService(options, fs, new FakeTimeProvider(Now)).RunAsync();
+        Assert.Equal(CleanupStatus.InvalidConfiguration, result.Status);
+        Assert.True(fs.File.Exists(FilePath));
+    }
+    [Fact]
+    public async Task Global_retry_deadline_prevents_starting_another_io_attempt()
+    {
+        var fs = Files(); var file = new Moq.Mock<System.IO.Abstractions.IFile>();
+        file.Setup(f => f.GetAttributes(Moq.It.IsAny<string>())).Returns((string p) => fs.File.GetAttributes(p));
+        file.SetupSequence(f => f.GetLastWriteTimeUtc(FilePath))
+            .Throws(new IOException("offline", unchecked((int)0x80070040)))
+            .Returns(fs.File.GetLastWriteTimeUtc(FilePath));
+        var proxy = new Moq.Mock<System.IO.Abstractions.IFileSystem>();
+        proxy.SetupGet(f => f.Directory).Returns(fs.Directory); proxy.SetupGet(f => f.File).Returns(file.Object);
+        proxy.SetupGet(f => f.Path).Returns(fs.Path); proxy.SetupGet(f => f.FileInfo).Returns(fs.FileInfo);
+        var options = Options(false); options.Resilience.MaxRetryElapsedSecondsPerRun = 1;
+        var clock = new CoordinatedTimeProvider(Now);
+        var task = new FileCleanUpService(options, proxy.Object, clock).RunAsync();
+        await clock.Complete(task);
+        Assert.Equal(CleanupStatus.Failed, (await task).Status);
+        file.Verify(f => f.GetLastWriteTimeUtc(FilePath), Moq.Times.Once);
+        Assert.True(fs.File.Exists(FilePath));
+    }
+    [Theory]
+    [InlineData("abc**")]
+    [InlineData("**abc")]
+    public async Task Ambiguous_embedded_double_star_is_rejected(string pattern)
+    {
+        var fs = Files(); var options = Options(false);
+        options.Rules[0].ExcludeDirectories = [new() { Kind = SelectorKind.Glob, Pattern = pattern }];
+        var result = await new FileCleanUpService(options, fs, new FakeTimeProvider(Now)).RunAsync();
+        Assert.Equal(CleanupStatus.InvalidConfiguration, result.Status);
+        Assert.True(fs.File.Exists(FilePath));
+    }
+    [Fact]
+    public async Task Protected_host_paths_must_not_be_aliases_through_reparse_points()
+    {
+        var fs = Files(); var options = Options(false);
+        var state = Path.Combine(Path.GetTempPath(), "host-state-link"); fs.Directory.CreateDirectory(state);
+        fs.File.SetAttributes(state, FileAttributes.Directory | FileAttributes.ReparsePoint);
+        options.ProtectedDirectories = [state];
         var result = await new FileCleanUpService(options, fs, new FakeTimeProvider(Now)).RunAsync();
         Assert.Equal(CleanupStatus.InvalidConfiguration, result.Status);
         Assert.True(fs.File.Exists(FilePath));

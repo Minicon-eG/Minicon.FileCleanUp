@@ -201,7 +201,7 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
         var observed = await Read(() => fs.File.GetLastWriteTimeUtc(path), path);
         var cutoff = result.StartedUtc.AddDays(-target.Rule.RetentionDays);
         if (observed >= cutoff) { Skip(path, "TooRecent"); return; }
-        var bytes = fs.FileInfo is null ? 0 : await Read(() => fs.FileInfo.New(path).Length, path);
+        var bytes = await Read(() => fs.FileInfo.New(path).Length, path);
         Count(s => s.CandidateFiles++); Count(s => s.CandidateBytes += bytes);
         var intent = new AuditRecord
         {
@@ -229,7 +229,7 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
         await Read(() => { EnsureSafePath(fs.Path.GetDirectoryName(path)!); return true; }, path);
         updated = await Read(() => fs.File.GetLastWriteTimeUtc(path), path);
         attributes = await Read(() => fs.File.GetAttributes(path), path);
-        if (updated != observed || (fs.FileInfo is not null && await Read(() => fs.FileInfo.New(path).Length, path) != bytes) || (attributes & (FileAttributes.ReadOnly | FileAttributes.ReparsePoint)) != 0)
+        if (updated != observed || (await Read(() => fs.FileInfo.New(path).Length, path) != bytes) || (attributes & (FileAttributes.ReadOnly | FileAttributes.ReparsePoint)) != 0)
         { Audit(intent with { Type = "SkippedAfterRevalidation" }); Skip(path, "ChangedSinceEvaluation"); return; }
         Event("FileDeleteStarted", 2000, path: path, record: intent);
         Count(s => s.DeleteAttempts++);
@@ -242,10 +242,11 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
                 if (attempt++ > 0)
                 {
                     EnsureSafePath(fs.Path.GetDirectoryName(path)!);
-                    if (fs.File.GetLastWriteTimeUtc(path) != observed || (fs.FileInfo is not null && fs.FileInfo.New(path).Length != bytes) || (fs.File.GetAttributes(path) & (FileAttributes.ReadOnly | FileAttributes.ReparsePoint)) != 0)
+                    if (fs.File.GetLastWriteTimeUtc(path) != observed || (fs.FileInfo.New(path).Length != bytes) || (fs.File.GetAttributes(path) & (FileAttributes.ReadOnly | FileAttributes.ReparsePoint)) != 0)
                     { Audit(intent with { Type = "SkippedAfterRevalidation" }); return false; }
-                    Audit(intent with { AttemptNumber = attempt });
-                    Event("FileDeleteStarted", 2000, path: path, record: intent with { AttemptNumber = attempt });
+                    intent = intent with { AttemptNumber = attempt };
+                    Audit(intent);
+                    Event("FileDeleteStarted", 2000, path: path, record: intent);
                     Count(s => s.DeleteAttempts++);
                 }
                 fs.File.Delete(path); return true;
@@ -343,7 +344,7 @@ internal sealed class CleanupRun(CleanupOptions options, IFileSystem fs, TimePro
             for (var attempt = 1; ; attempt++)
             {
                 token.ThrowIfCancellationRequested();
-                if (retrySeconds >= options.Resilience.MaxRetryElapsedSecondsPerRun) throw new RetryBudgetException();
+                if (retrySeconds + (started.HasValue ? clock.GetElapsedTime(started.Value).TotalSeconds : 0) >= options.Resilience.MaxRetryElapsedSecondsPerRun) throw new RetryBudgetException();
                 try
                 {
                     var value = operation();

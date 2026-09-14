@@ -11,6 +11,8 @@ $journal = Join-Path $work 'journal'
 $app = Join-Path $work 'app'
 $outside = Join-Path $work 'outside'
 $lock = $null
+$originalDirectoryAcl = $null
+$originalFileAcl = $null
 function OldFile([string] $path) {
     [IO.File]::WriteAllText($path, 'test data')
     [IO.File]::SetLastWriteTimeUtc($path, [DateTime]::Parse('2020-01-01T00:00:00Z').ToUniversalTime())
@@ -57,6 +59,23 @@ try {
     Execute 0
     if (Test-Path $old) { throw 'Unlocked file was not deleted on restart' }
 
+    # Explicit deny permissions must produce a partial result without changing ACLs.
+    OldFile $old
+    $originalDirectoryAcl = Get-Acl $data
+    $originalFileAcl = Get-Acl $old
+    $directoryAcl = Get-Acl $data
+    $directoryAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($identity, [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles, [Security.AccessControl.AccessControlType]::Deny))
+    Set-Acl -Path $data -AclObject $directoryAcl
+    $fileAcl = Get-Acl $old
+    $fileAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($identity, [Security.AccessControl.FileSystemRights]::Delete, [Security.AccessControl.AccessControlType]::Deny))
+    Set-Acl -Path $old -AclObject $fileAcl
+    Execute 1
+    if (!(Test-Path $old)) { throw 'ACL-protected file was deleted' }
+    Set-Acl -Path $old -AclObject $originalFileAcl; $originalFileAcl = $null
+    Set-Acl -Path $data -AclObject $originalDirectoryAcl; $originalDirectoryAcl = $null
+    Execute 0
+    if (Test-Path $old) { throw 'File was not removed after restoring permissions' }
+
     $protectedFile = Join-Path $outside 'protected.csv'
     OldFile $protectedFile
     New-Item -ItemType Junction -Path (Join-Path $data 'junction') -Target $outside | Out-Null
@@ -64,10 +83,12 @@ try {
     if (!(Test-Path $protectedFile)) { throw 'Junction target was traversed' }
     # Remove the link explicitly; never recursively traverse it during test cleanup.
     [IO.Directory]::Delete((Join-Path $data 'junction'))
-    Write-Host 'PASS: SMB unavailable/recovered, real Windows sharing lock, junction protection'
+    Write-Host 'PASS: SMB unavailable/recovered, real Windows sharing lock, ACL denial, junction protection'
 }
 finally {
     if ($lock) { $lock.Dispose() }
+    if ($originalFileAcl -and (Test-Path $old)) { Set-Acl -Path $old -AclObject $originalFileAcl }
+    if ($originalDirectoryAcl) { Set-Acl -Path $data -AclObject $originalDirectoryAcl }
     if (Get-SmbShare -Name $share -ErrorAction SilentlyContinue) { Remove-SmbShare -Name $share -Force }
     $link = Join-Path $data 'junction'
     if (Test-Path $link) { [IO.Directory]::Delete($link) }

@@ -24,9 +24,10 @@ try
 {
     cleanupOptions = builder.Configuration.GetSection("FileCleanUp").Get<CleanupOptions>(o => o.ErrorOnUnknownConfiguration = true) ?? new();
     cleanupOptions.ProtectedDirectories.Add(stateDirectory);
+    cleanupOptions.ProtectedDirectories.Add(AppContext.BaseDirectory);
     cleanupOptions.Validate(new FileSystem());
 }
-catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NullReferenceException)
+catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NullReferenceException or IOException or UnauthorizedAccessException)
 {
     System.Console.Error.WriteLine($"ConfigurationInvalid: {ex.Message}");
     return 2;

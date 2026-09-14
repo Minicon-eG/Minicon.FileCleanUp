@@ -29,6 +29,16 @@ internal static class ConfigurationValidator
                 {
                     if (!fs.Path.IsPathFullyQualified(protectedPath)) throw new ArgumentException("ProtectedDirectories must be absolute.");
                     var canonical = fs.Path.TrimEndingDirectorySeparator(fs.Path.GetFullPath(protectedPath));
+                    for (var current = canonical; !string.IsNullOrEmpty(current); current = fs.Path.GetDirectoryName(current))
+                    {
+                        try
+                        {
+                            if ((fs.File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                                throw new ArgumentException("Protected host paths must not contain reparse points.");
+                        }
+                        catch (FileNotFoundException) { }
+                        catch (DirectoryNotFoundException) { }
+                    }
                     if (Contains(root, canonical) || Contains(canonical, root))
                         throw new ArgumentException("Search roots must not overlap protected host directories.");
                 }
@@ -61,6 +71,8 @@ internal static class ConfigurationValidator
         if (string.IsNullOrWhiteSpace(selector.Pattern)) throw new ArgumentException("Pattern required.");
         if (selector.Kind != SelectorKind.Regex && (selector.Pattern.StartsWith('/') || selector.Pattern.StartsWith('\\') || selector.Pattern.Contains(':') || selector.Pattern.Replace('\\', '/').Split('/').Contains("..")))
             throw new ArgumentException("Pattern must stay inside the root.");
+        if (selector.Kind == SelectorKind.Glob && selector.Pattern.Replace('\\', '/').Split('/').Any(segment => segment.Contains("**") && segment != "**"))
+            throw new ArgumentException("Double star must be a complete directory segment.");
         _ = DirectoryPatterns.Matches(selector, "validation");
     }
 }
