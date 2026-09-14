@@ -20,6 +20,10 @@ jobs:
         with:
           python-version: '3.12'
       - run: dotnet test -c Release --logger "trx;LogFileName=tests.trx"
+      - name: Verify C# formatting
+        run: dotnet format whitespace --no-restore --verify-no-changes
+      - name: Verify explicit control-flow braces
+        run: dotnet format style --no-restore --verify-no-changes --diagnostics IDE0011
       - run: dotnet build samples/Minicon.FileCleanUp.Console -c Release
       - run: python scripts/package-smoke.py
       - run: python scripts/host-smoke.py

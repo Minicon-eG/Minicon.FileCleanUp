@@ -19,6 +19,14 @@ public sealed class FileCleanUpService(
         ArgumentNullException.ThrowIfNull(fileSystem);
         ArgumentNullException.ThrowIfNull(timeProvider);
         var snapshot = JsonSerializer.Deserialize<CleanupOptions>(JsonSerializer.Serialize(options))!;
-        return new CleanupRun(snapshot, fileSystem, timeProvider, auditJournal, logger, retryJitter ?? new RandomRetryJitter(), cancellationToken, directory => new LocalAuditJournal(directory, fileSystem, timeProvider)).Execute();
+        return new CleanupRun(
+            snapshot,
+            fileSystem,
+            timeProvider,
+            auditJournal,
+            logger,
+            retryJitter ?? new RandomRetryJitter(),
+            cancellationToken,
+            directory => new LocalAuditJournal(directory, fileSystem, timeProvider)).Execute();
     }
 }

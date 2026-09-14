@@ -22,3 +22,7 @@ Only the entry project is packable. Its pack target includes the three layer ass
 Validation: existing public behavior tests, real-process recovery, Windows storage acceptance and a fresh package consumer that executes a dry run with Required audit. The package test checks bundled assemblies, absence of internal package dependencies, and offline HTML build/publish/opt-out.
 
 No package is published merely by this refactoring. Use a new version and matching release tag for the next release; published 1.0.0 remains immutable.
+
+## Readability conventions
+
+One top-level public type per file, named after that type. Control flow uses explicit braces and multi-line executable blocks. Keep simple auto-properties compact; split long argument lists and compound conditions across lines. Separate methods and logical phases with blank lines. `.editorconfig` defines formatting and brace requirements, checked by CI using `dotnet format`.
