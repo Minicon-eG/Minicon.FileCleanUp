@@ -3,6 +3,12 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Test build, acceptance and NuGet login without uploading a package'
+        type: boolean
+        default: true
+        required: true
 permissions:
   contents: read
 concurrency:
@@ -23,10 +29,11 @@ jobs:
         env:
           RELEASE_REF: ${{ github.ref }}
           NUGET_USER: ${{ vars.NUGET_USER }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: |
           [xml]$project = Get-Content src/Minicon.FileCleanUp/Minicon.FileCleanUp.csproj
           $version = [string]$project.Project.PropertyGroup.Version
-          if ($env:RELEASE_REF -ne "refs/tags/v$version") { throw 'Run this workflow on the matching version tag, never a branch.' }
+          if ($env:DRY_RUN -ne "true" -and $env:RELEASE_REF -ne "refs/tags/v$version") { throw 'Run this workflow on the matching version tag, never a branch.' }
           if ([string]::IsNullOrWhiteSpace($env:NUGET_USER)) { throw 'Set the NUGET_USER repository variable to the NuGet.org profile name and configure Trusted Publishing.' }
           "RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
       - uses: actions/setup-dotnet@v6.0.0
@@ -46,7 +53,12 @@ jobs:
         id: login
         with:
           user: ${{ vars.NUGET_USER }}
+      - name: Test completed without uploading
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+        shell: pwsh
+        run: '"Build, acceptance and NuGet OIDC login succeeded. No package was uploaded." >> $env:GITHUB_STEP_SUMMARY'
       - name: Publish the verified package
+        if: github.event_name != 'workflow_dispatch' || !inputs.dry_run
         shell: pwsh
         env:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}

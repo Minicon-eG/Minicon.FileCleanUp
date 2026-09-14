@@ -33,3 +33,9 @@ The repository variable is currently configured as `NUGET_USER=nitr0n`. Creating
 Version `1.0.0` was already published manually. Do not republish it to test automation. The release tag must include this updated workflow; changing `main` does not update older tags. To retry a failed release, rerun its failed Actions job or manually dispatch the workflow on that version tag after resolving the cause.
 
 NuGet package versions cannot be overwritten. If a retry reports an existing version, inspect the existing package before deciding whether any action is required; the workflow deliberately does not hide conflicts with `--skip-duplicate`.
+
+## Test publishing access without an upload
+
+Run `Publish NuGet release` manually on `main` with `dry_run=true` (the default). This runs the build and acceptance checks and performs a real NuGet OIDC login, but skips the package upload. It verifies the Trusted Publishing policy without consuming a new package version. It does not test the release event or NuGet upload/indexing.
+
+For a manual production retry, select the matching version tag and explicitly set `dry_run=false`. Published GitHub releases always take the production path.
