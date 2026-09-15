@@ -22,6 +22,36 @@ internal static class DirectoryPatterns
             TimeSpan.FromMilliseconds(100));
     }
 
+    internal static bool MayContainTarget(DirectorySelector selector, string relative)
+    {
+        if (selector.Kind != SelectorKind.Glob)
+        {
+            return true;
+        }
+
+        var pattern = (selector.Pattern ?? "").Replace('\\', '/').Split('/');
+        if (pattern.Contains("**"))
+        {
+            return true;
+        }
+
+        var parts = relative.Replace('\\', '/').Split('/');
+        if (parts.Length >= pattern.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (!Matches(new DirectorySelector { Kind = SelectorKind.Glob, Pattern = pattern[i] }, parts[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static string Glob(string pattern)
     {
         var result = new StringBuilder();

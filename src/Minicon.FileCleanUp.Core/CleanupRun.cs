@@ -50,7 +50,7 @@ internal sealed class CleanupRun(
 
             foreach (var rule in options.Rules)
             {
-                _ = RetentionPolicy.Cutoff(result.StartedUtc, rule.RetentionDays);
+                _ = RetentionPolicy.Cutoff(result.StartedUtc, rule);
             }
 
             result.ConfigFingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(options)));
@@ -73,6 +73,13 @@ internal sealed class CleanupRun(
             }
 
             var targets = await ResolveTargets();
+            if (TargetsConflict(targets))
+            {
+                result.Status = CleanupStatus.InvalidConfiguration;
+                Event("ConfigurationInvalid", 3002, new ArgumentException("Resolved cleanup targets overlap."));
+                return result;
+            }
+
             foreach (var target in targets)
             {
                 token.ThrowIfCancellationRequested();
@@ -216,7 +223,10 @@ internal sealed class CleanupRun(
                                 Add(child);
                             }
 
-                            queue.Push(child);
+                            if (DirectoryPatterns.MayContainTarget(selector, fs.Path.GetRelativePath(selector.Root, child)))
+                            {
+                                queue.Push(child);
+                            }
                         }
                     }
                 }
@@ -227,6 +237,11 @@ internal sealed class CleanupRun(
                     path: selector.Root);
                 void Add(string path)
                 {
+                    if (Excluded(rule, selector, path))
+                    {
+                        return;
+                    }
+
                     found++;
                     if (targets.Any(t => t.Rule == rule
                         && ConfigurationValidator.Comparer.Equals(t.Path, path)))
@@ -247,6 +262,31 @@ internal sealed class CleanupRun(
         }
 
         return targets;
+    }
+
+    private static bool TargetsConflict(List<Target> targets)
+    {
+        for (var i = 0; i < targets.Count; i++)
+        {
+            for (var j = i + 1; j < targets.Count; j++)
+            {
+                var left = targets[i];
+                var right = targets[j];
+                if (left.Rule == right.Rule)
+                {
+                    continue;
+                }
+
+                if (ConfigurationValidator.Comparer.Equals(left.Path, right.Path)
+                    || (left.Rule.Recursive && ConfigurationValidator.Contains(left.Path, right.Path))
+                    || (right.Rule.Recursive && ConfigurationValidator.Contains(right.Path, left.Path)))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private async Task ProcessTarget(Target target)
@@ -386,7 +426,7 @@ internal sealed class CleanupRun(
         }
 
         var observed = await Read(() => ReadTimestamps(path, target.Rule.CheckDates), path);
-        var cutoff = RetentionPolicy.Cutoff(result.StartedUtc, target.Rule.RetentionDays);
+        var cutoff = RetentionPolicy.Cutoff(result.StartedUtc, target.Rule);
         if (!RetentionPolicy.IsExpired(observed.LatestSelected(target.Rule.CheckDates), cutoff))
         {
             Skip(path, "TooRecent");
@@ -650,7 +690,10 @@ internal sealed class CleanupRun(
         var relative = fs.Path.GetRelativePath(selector.Root, path);
         for (var i = 0; i < rule.ExcludeDirectories.Count; i++)
         {
-            if (DirectoryPatterns.Matches(rule.ExcludeDirectories[i], relative))
+            var exclusion = rule.ExcludeDirectories[i];
+            var candidate = exclusion.MatchFullPath ? path : relative;
+            if (DirectoryPatterns.Matches(exclusion, candidate)
+                || (exclusion.MatchFullPath && DirectoryPatterns.Matches(exclusion, candidate + "/")))
             {
                 Event("DirectorySkipped", 2103, path: path, reason: "Excluded", exclusionIndex: i);
                 return true;

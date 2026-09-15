@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0 — 2026-09-15
+
+- Add host-owned asynchronous legacy JSON rule-provider integration without a database dependency.
+- Map existing source directories, wildcard paths, filename filters, exclusions, recursion and timestamp flags.
+- Support MaxAgeDateTime as a fixed cutoff: only strictly older timestamps qualify. Combine with retention limits using the earliest cutoff. Legacy dates without an offset are UTC.
+- Validate all rules before deletion. Allow shared wildcard search roots and nonrecursive parent/recursive child rules; reject conflicting resolved targets.
+- Prune wildcard searches outside matching prefixes and document legacy exclusion semantics in the bundled HTML.
+
+Validation: 95 automated tests and package-consumer checks. Release workflow additionally gates publication on Windows host and storage acceptance.
+Compatibility: .NET 10 remains required. Console integration needs the new provider callback; database JSON does not need migration. Do not mix modern Rules with provider rules. Legacy directory exclusion stars can span separators; filename exclusions are filename patterns only.
+
 ## 1.1.0 — 2026-09-15
 
 - Accept legacy global configuration names `DelayBetweenDelete` (milliseconds) and `MinimumAgeInDays`; reject conflicting old/new values and unknown keys.

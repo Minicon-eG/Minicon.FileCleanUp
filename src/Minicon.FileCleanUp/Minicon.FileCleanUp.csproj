@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <PackageId>Minicon.FileCleanUp</PackageId>
     <Authors>Minicon eG</Authors>
     <Description>Age-based file cleanup for customer console applications with dry run, structured logging, bounded retries and durable audit.</Description>
@@ -13,7 +13,7 @@
     <RepositoryUrl>https://github.com/Minicon-eG/Minicon.FileCleanUp</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageProjectUrl>https://github.com/Minicon-eG/Minicon.FileCleanUp</PackageProjectUrl>
-    <PackageReleaseNotes>Adds legacy global configuration aliases and combined UTC timestamp selection. See CHANGELOG.md for scope and compatibility limits.</PackageReleaseNotes>
+    <PackageReleaseNotes>Adds legacy JSON rule-provider integration, wildcard exclusions and fixed MaxAgeDateTime cutoffs. See CHANGELOG.md for scope and compatibility limits.</PackageReleaseNotes>
     <PackageTags>cleanup;filesystem;dry-run;audit</PackageTags>
   </PropertyGroup>
 

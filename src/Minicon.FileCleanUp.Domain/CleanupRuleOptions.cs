@@ -10,6 +10,8 @@ public sealed class CleanupRuleOptions
     public bool Recursive { get; set; }
     public List<DirectorySelector> ExcludeDirectories { get; set; } = [];
     public string Name { get; set; } = "";
+    /// <summary>Optional fixed cutoff, combined with the retention cutoff using the earlier instant.</summary>
+    public DateTimeOffset? MaxAgeDateTime { get; set; }
     public int RetentionDays { get; set; }
     public List<DirectorySelector> Directories { get; set; } = [];
 }

@@ -25,7 +25,7 @@ internal static class ConfigurationValidator
         }
 
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var roots = new List<(string Path, string Rule)>();
+        var roots = new List<(string Path, string Rule, SelectorKind Kind)>();
         foreach (var rule in options.Rules)
         {
             if (string.IsNullOrWhiteSpace(rule.Name)
@@ -113,7 +113,8 @@ internal static class ConfigurationValidator
 
                 foreach (var existing in roots)
                 {
-                    if ((Contains(existing.Path, root)
+                    if (existing.Kind == SelectorKind.Path && selector.Kind == SelectorKind.Path
+                        && (Contains(existing.Path, root)
                         || Contains(root, existing.Path))
                         && !(existing.Rule == rule.Name
     && existing.Path == root))
@@ -132,7 +133,7 @@ internal static class ConfigurationValidator
                     }
                 }
 
-                roots.Add((root, rule.Name));
+                roots.Add((root, rule.Name, selector.Kind));
                 ValidateSelector(selector, false);
             }
 
@@ -150,6 +151,11 @@ internal static class ConfigurationValidator
 
     private static void ValidateSelector(DirectorySelector selector, bool exclusion)
     {
+        if (selector.MatchFullPath && (!exclusion || selector.Kind != SelectorKind.Regex))
+        {
+            throw new ArgumentException("Full-path matching is only supported for regex exclusions.");
+        }
+
         if (!Enum.IsDefined(selector.Kind))
         {
             throw new ArgumentException("Unknown selector kind.");
