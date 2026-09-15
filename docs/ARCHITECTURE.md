@@ -21,7 +21,7 @@ Only the entry project is packable. Its pack target includes the three layer ass
 
 Validation: existing public behavior tests, real-process recovery, Windows storage acceptance and a fresh package consumer that executes a dry run with Required audit. The package test checks bundled assemblies, absence of internal package dependencies, and offline HTML build/publish/opt-out.
 
-No package is published merely by this refactoring. Use a new version and matching release tag for the next release; published 1.0.0 remains immutable.
+This structure ships in 1.1.0. Published 1.0.0 remains immutable.
 
 ## Readability conventions
 

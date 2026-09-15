@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.0 — 2026-09-15
+
+- Accept legacy global configuration names `DelayBetweenDelete` (milliseconds) and `MinimumAgeInDays`; reject conflicting old/new values and unknown keys.
+- Add flags-based `CheckDates`: every selected creation/write/access UTC timestamp must strictly precede the retention cutoff. Default remains last write; empty/unknown selections are rejected.
+- Revalidate selected timestamps before deletion and retries. Record the observed timestamps and selected flags in audit and logs.
+- Separate Domain, Core, Infrastructure and entry-point assemblies, bundled in one NuGet package. Preserve existing public namespaces with type forwarding.
+- Improve source readability and enforce formatting in CI. Update the bundled offline handbook and integration examples.
+
+Validation: 82 tests plus package-consumer, process recovery and Windows storage acceptance checks.
+
+Compatibility: .NET 10 remains required. This release does not include the full legacy `FileCleanUpSetting` provider adapter, `MaxAgeDateTime`, or legacy absolute-path exclusion conversion. Cleanup rules with target directories remain required. Reflection limited to the original assembly may need updating. Do not downgrade an active audit journal after a version upgrade without validating compatibility.
+
 ## 1.0.0 — 2026-09-14
 
 First stable release of `Minicon.FileCleanUp` for customer-owned .NET 10 console applications, focused on Windows and UNC network shares.
