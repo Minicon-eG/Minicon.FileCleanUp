@@ -36,6 +36,44 @@ public class CleanupTests
         ]
     };
     [Fact]
+    public async Task Recent_file_trace_explains_the_timestamp_and_cutoff()
+    {
+        var fs = Files();
+        fs.File.SetLastWriteTimeUtc(FilePath, Now.UtcDateTime);
+        var logger = new RecordingLogger<FileCleanUpService>();
+        await new FileCleanUpService(Options(), fs, new FakeTimeProvider(Now), logger: logger).RunAsync();
+        var skipped = Assert.Single(logger.Events,
+            e => Equals(e.GetValueOrDefault("ReasonCode"), "TooRecent"));
+        Assert.Equal(Now, skipped["EvaluatedTimestampUtc"]);
+        Assert.Equal(new DateTimeOffset(2026, 6, 16, 2, 0, 0, TimeSpan.Zero), skipped["CutoffUtc"]);
+        Assert.Contains("CutoffUtc", (string)skipped["Message"]!);
+    }
+
+    [Fact]
+    public async Task Excluded_directories_are_trace_events_with_readable_rule_and_reason()
+    {
+        var fs = Files();
+        fs.AddFile(Path.Combine(Root, "protected", "keep.txt"), new MockFileData("keep"));
+        var options = Options();
+        options.Rules[0].Recursive = true;
+        options.Rules[0].ExcludeDirectories.Add(new() { Kind = SelectorKind.Glob, Pattern = "protected" });
+        var logger = new RecordingLogger<FileCleanUpService>();
+
+        await new FileCleanUpService(options, fs, new FakeTimeProvider(Now), logger: logger).RunAsync();
+
+        var skipped = Assert.Single(logger.Events,
+            e => Equals(e.GetValueOrDefault("EventType"), "DirectorySkipped"));
+        Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Trace, skipped["Level"]);
+        var message = (string)skipped["Message"]!;
+        Assert.Contains("Exports", message);
+        Assert.Contains("Excluded", message);
+        Assert.Contains("protected", message);
+        Assert.Equal("protected", skipped["ExclusionPattern"]);
+        Assert.Contains("ExclusionPattern", message);
+        Assert.Contains("RuleName", (string)skipped["{OriginalFormat}"]!);
+    }
+
+    [Fact]
     public async Task Dry_run_preserves_old_file_and_reports_candidate()
     {
         var fs = Files();
@@ -394,6 +432,7 @@ public class CleanupTests
         var result = await new FileCleanUpService(Options(), Files(), new FakeTimeProvider(Now), logger: logger).RunAsync(new CancellationToken(cancelled));
         var started = Assert.Single(logger.Events, e => Equals(e.GetValueOrDefault("EventType"), "CleanupStarted"));
         var completed = Assert.Single(logger.Events, e => Equals(e.GetValueOrDefault("EventType"), "CleanupCompleted"));
+        Assert.Contains("2026-09-14T02:00:00", (string)started["Message"]!);
         Assert.Equal(started["RunId"], completed["RunId"]);
         Assert.NotEqual(Guid.Empty, started["RunId"]);
         Assert.Equal(result.Statistics.CandidateFiles, completed["CandidateFiles"]);

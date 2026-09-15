@@ -429,7 +429,14 @@ internal sealed class CleanupRun(
         var cutoff = RetentionPolicy.Cutoff(result.StartedUtc, target.Rule);
         if (!RetentionPolicy.IsExpired(observed.LatestSelected(target.Rule.CheckDates), cutoff))
         {
-            Skip(path, "TooRecent");
+            Skip(path, "TooRecent", record: new AuditRecord
+            {
+                EvaluatedTimestampUtc = observed.LatestSelected(target.Rule.CheckDates),
+                EvaluatedCreationTimeUtc = observed.CreationTimeUtc,
+                EvaluatedLastWriteTimeUtc = observed.LastWriteTimeUtc,
+                EvaluatedLastAccessTimeUtc = observed.LastAccessTimeUtc,
+                CutoffUtc = cutoff
+            });
             return;
         }
 
@@ -845,7 +852,7 @@ internal sealed class CleanupRun(
         }
     }
 
-    private void Skip(string path, string reason, bool directory = false)
+    private void Skip(string path, string reason, bool directory = false, AuditRecord? record = null)
     {
         Count(s => s.SkippedByReason[reason] = s.SkippedByReason.GetValueOrDefault(reason) + 1);
         if (reason == "AuditPending")
@@ -858,7 +865,7 @@ internal sealed class CleanupRun(
             directory ? "DirectorySkipped" : "FileSkipped",
             directory ? 2103 : 2003,
             path: path,
-            reason: reason);
+            reason: reason, record: record);
     }
 
     private void Count(Action<CleanupStatistics> update)
@@ -920,6 +927,10 @@ internal sealed class CleanupRun(
             ["RunStartedUtc"] = result.StartedUtc,
             ["SelectorIndex"] = currentSelector is null ? null : currentRule?.Directories.IndexOf(currentSelector),
             ["ExclusionIndex"] = exclusionIndex,
+            ["ExclusionPattern"] = exclusionIndex is { } index
+                ? currentRule?.ExcludeDirectories[index].Pattern : null,
+            ["ExclusionKind"] = exclusionIndex is { } kindIndex
+                ? currentRule?.ExcludeDirectories[kindIndex].Kind.ToString() : null,
             ["RetryDelaySeconds"] = retryDelaySeconds,
             ["RetryElapsedSeconds"] = retryElapsedSeconds,
             ["MaxAttempts"] = options.Resilience?.MaxAttempts,
@@ -936,6 +947,10 @@ internal sealed class CleanupRun(
             ["EvaluatedLastWriteTimeUtc"] = record?.EvaluatedLastWriteTimeUtc,
             ["EvaluatedLastAccessTimeUtc"] = record?.EvaluatedLastAccessTimeUtc,
             ["RetentionDays"] = currentRule?.RetentionDays,
+            ["MaxAgeDateTime"] = currentRule?.MaxAgeDateTime,
+            ["Recursive"] = currentRule?.Recursive,
+            ["IncludePatterns"] = currentRule is null ? null : JsonSerializer.Serialize(currentRule.IncludePatterns),
+            ["ExcludePatterns"] = currentRule is null ? null : JsonSerializer.Serialize(currentRule.ExcludePatterns),
             ["Status"] = result.Status.ToString(),
             ["CandidateFiles"] = result.Statistics.CandidateFiles,
             ["FilesDeleted"] = result.Statistics.FilesDeleted,
@@ -946,7 +961,7 @@ internal sealed class CleanupRun(
             ["ConfigFingerprint"] = result.ConfigFingerprint,
             ["NativeErrorCode"] = error is IOException io ? io.HResult & 0xffff : null
         };
-        var level = type is "FileSkipped" or "DirectorySkipped" ? LogLevel.Debug : error is not null ? LogLevel.Error : LogLevel.Information;
+        var level = type is "FileSkipped" or "DirectorySkipped" ? LogLevel.Trace : error is not null ? LogLevel.Error : LogLevel.Information;
         if (type is "FileSystemRetryScheduled" or "DirectorySelectionEmpty" or "CleanupLimitReached")
         {
             level = LogLevel.Warning;
@@ -958,13 +973,35 @@ internal sealed class CleanupRun(
             level = LogLevel.Error;
         }
 
+        var messageKeys = new[]
+        {
+            "EventTimestampUtc", "RunStartedUtc", "RunId", "DryRun", "RuleName",
+            "Path", "SearchRoot", "SelectorKind", "SelectorPattern", "ReasonCode",
+            "ExclusionIndex", "ExclusionKind", "ExclusionPattern", "RetentionDays",
+            "MaxAgeDateTime", "Recursive", "IncludePatterns", "ExcludePatterns",
+            "TimestampBasis", "CutoffUtc", "EvaluatedTimestampUtc",
+            "EvaluatedCreationTimeUtc", "EvaluatedLastWriteTimeUtc", "EvaluatedLastAccessTimeUtc"
+        };
+        var fields = messageKeys.Where(key => properties[key] is not null).ToArray();
+        properties["{OriginalFormat}"] = "{EventType}: " + string.Join("; ",
+            fields.Select(key => key + "={" + key + "}"));
+
         logger.Log(
             level,
             new EventId(id, type),
             properties,
             error,
-            (state, _) => $"{state["EventType"]}: {state["Path"]}");
+            (state, _) => state["EventType"] + ": " + string.Join("; ",
+                fields.Select(key => key + "=" + FormatLogValue(state[key]))));
     }
+
+    private static string FormatLogValue(object? value) => value switch
+    {
+        DateTimeOffset timestamp => timestamp.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+        DateTime timestamp => timestamp.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+        IFormattable formattable => formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture),
+        _ => value?.ToString() ?? ""
+    };
 
     private sealed record Target(CleanupRuleOptions Rule, DirectorySelector Selector, string Path);
     private sealed class LimitReachedException : Exception;

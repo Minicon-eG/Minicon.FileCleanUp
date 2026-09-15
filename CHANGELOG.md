@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.2 — 2026-09-15
+
+Detailed logging for Console and Seq:
+- Log skipped files and directories at Trace.
+- Include UTC timestamps, rule names, source selectors, exclusions, filters and retention settings in readable messages.
+- Explain TooRecent decisions with evaluated timestamps and effective cutoff.
+- Preserve structured Seq properties and align message templates.
+- Include updated offline documentation.
+
+Validation: 97 automated tests; publication is gated on package, host and Windows storage acceptance.
+
 ## 1.2.1 — 2026-09-15
 
 - Add host-owned asynchronous legacy JSON rule-provider integration without a database dependency.

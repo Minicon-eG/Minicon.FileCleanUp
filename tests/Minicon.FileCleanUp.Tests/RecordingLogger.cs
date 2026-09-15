@@ -18,6 +18,8 @@ internal sealed class RecordingLogger<T> : ILogger<T>
     {
         var properties = ((IEnumerable<KeyValuePair<string, object?>>)state!).ToDictionary(x => x.Key, x => x.Value);
         properties["EventId"] = eventId.Id;
+        properties["Level"] = logLevel;
+        properties["Message"] = formatter(state, exception);
         Events.Add(properties);
     }
 }
