@@ -625,6 +625,19 @@ internal sealed class CleanupRun(
 
     private async Task RemoveEmpty(string path, Target target)
     {
+        for (var i = 0; i < target.Rule.ExcludeDirectories.Count; i++)
+        {
+            var exclusion = target.Rule.ExcludeDirectories[i];
+            var candidate = exclusion.MatchFullPath
+                ? path : fs.Path.GetRelativePath(target.Selector.Root, path);
+            if (exclusion.PreserveDirectoryOnly && DirectoryPatterns.Matches(exclusion, candidate))
+            {
+                Event("DirectorySkipped", 2103, path: path,
+                    reason: "DirectoryDeletionProtected", exclusionIndex: i);
+                return;
+            }
+        }
+
         if (protectedRoots.Contains(path)
             || Blocked(path, true)
             || pending.Any(p => ConfigurationValidator.Contains(path, p.Path))
@@ -727,6 +740,10 @@ internal sealed class CleanupRun(
         for (var i = 0; i < rule.ExcludeDirectories.Count; i++)
         {
             var exclusion = rule.ExcludeDirectories[i];
+            if (exclusion.PreserveDirectoryOnly)
+            {
+                continue;
+            }
             var candidate = exclusion.MatchFullPath ? path : relative;
             if (DirectoryPatterns.Matches(exclusion, candidate)
                 || (exclusion.MatchFullPath && DirectoryPatterns.Matches(exclusion, candidate + "/")))

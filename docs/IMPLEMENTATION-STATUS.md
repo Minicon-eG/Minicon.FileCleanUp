@@ -1,11 +1,11 @@
-# Implementation status — 1.3.0
+# Implementation status — 1.3.1
 
-This file records the scope of the 1.3.0 package release. Customer-specific Windows, share, identity and Seq acceptance is a deployment responsibility, separate from the package release. Documented extensions are not part of the 1.3.0 contract.
+This file records the scope of the 1.3.1 package release. Customer-specific Windows, share, identity and Seq acceptance is a deployment responsibility, separate from the package release. Documented extensions are not part of the 1.3.1 contract.
 
 ## Implemented
 
 - Legacy JSON rule-provider adapter, wildcard source/exclusion mapping and fixed MaxAgeDateTime cutoff combined with minimum age and retention.
-- 95 local automated tests and fresh package-consumer checks passed for 1.3.0. Windows acceptance is enforced by the publishing workflow.
+- 95 local automated tests and fresh package-consumer checks passed for 1.3.1. Windows acceptance is enforced by the publishing workflow.
 
 - Legacy global aliases and CheckDates flags with AND semantics, timestamp revalidation and detailed audit values.
 - Four source assemblies shipped in one NuGet package, preserving existing public namespaces through forwarding.

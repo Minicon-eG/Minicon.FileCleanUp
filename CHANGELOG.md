@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.1 — 2026-09-15
+
+Correct legacy directory exclusion semantics.
+- DeleteExclusions.Directories preserves only the matching directory itself. Recursive cleanup continues inside it.
+- IgnoreSubdirectories still prunes the entire subtree.
+- Add PreserveDirectoryOnly to modern exclusion selectors (default false preserves existing subtree exclusion behavior).
+- Trace logs DirectoryDeletionProtected with the matching rule and exclusion.
+- Dry run retains protected directories and does not count them as virtually removed.
+
+Behavior change: files and subdirectories beneath legacy deletion-protected directories can now be cleaned according to the configured rules.
+Validation: 104 tests including nested protected directories, ignored subtrees and dry run; Windows/package/host checks gate publishing.
+
 ## 1.3.0 — 2026-09-15
 
 Add configurable periodic CleanupProgress messages at Information level.

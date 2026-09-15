@@ -38,8 +38,9 @@ public class LegacyProviderTests
 
         Assert.Equal(CleanupStatus.Succeeded, result.Status);
         Assert.False(fs.File.Exists(delete));
-        Assert.True(fs.File.Exists(excluded));
-        Assert.Equal(1, result.Statistics.FilesDeleted);
+        Assert.False(fs.File.Exists(excluded));
+        Assert.True(fs.Directory.Exists(Path.GetDirectoryName(excluded)!));
+        Assert.Equal(2, result.Statistics.FilesDeleted);
     }
 
     [Fact]
@@ -203,6 +204,44 @@ public class LegacyProviderTests
         Assert.Equal(0, result.Statistics.FilesDeleted);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Protected_directories_are_traversed_but_ignored_subtrees_are_untouched(bool dryRun)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "legacy-directory-protection");
+        var protectedParent = Path.Combine(root, "Outbound");
+        var protectedChild = Path.Combine(protectedParent, "Application");
+        var dated = Path.Combine(protectedChild, "2025");
+        var old = Path.Combine(dated, "old.txt");
+        var ignored = Path.Combine(root, "Ignore", "old.txt");
+        var fs = new MockFileSystem();
+        AddOld(fs, old);
+        AddOld(fs, ignored);
+        var json = JsonSerializer.Serialize(new
+        {
+            Name = "Archive",
+            SourceDirectory = root,
+            MaxAgeInDays = 30,
+            Recursive = true,
+            RemoveEmptyDirectory = true,
+            IgnoreSubdirectories = new[] { "Ignore" },
+            DeleteExclusions = new { Directories = new[] { "Outbound", "Application" } }
+        });
+
+        var result = await RunWithMode(fs, dryRun, json);
+
+        Assert.Equal(CleanupStatus.Succeeded, result.Status);
+        Assert.True(fs.Directory.Exists(protectedParent));
+        Assert.True(fs.Directory.Exists(protectedChild));
+        Assert.True(fs.File.Exists(ignored));
+        Assert.Equal(dryRun, fs.File.Exists(old));
+        Assert.Equal(dryRun, fs.Directory.Exists(dated));
+        Assert.Equal(1, result.Statistics.CandidateFiles);
+        Assert.Equal(dryRun ? 0 : 1, result.Statistics.FilesDeleted);
+        Assert.Equal(dryRun ? 1 : 0, result.Statistics.DirectoriesWouldBeDeleted);
+    }
+
     private static void AddOld(MockFileSystem fs, string path)
     {
         fs.AddFile(path, new MockFileData("data")
@@ -213,11 +252,14 @@ public class LegacyProviderTests
         });
     }
 
-    private static async Task<CleanupResult> Run(MockFileSystem fs, params string[] rules)
+    private static Task<CleanupResult> Run(MockFileSystem fs, params string[] rules)
+        => RunWithMode(fs, false, rules);
+
+    private static async Task<CleanupResult> RunWithMode(MockFileSystem fs, bool dryRun, params string[] rules)
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["FileCleanUp:DryRun"] = "false",
+            ["FileCleanUp:DryRun"] = dryRun.ToString(),
             ["FileCleanUp:DelayBetweenDelete"] = "0",
             ["FileCleanUp:MinimumAgeInDays"] = "14"
         }).Build();

@@ -152,6 +152,11 @@ internal static class ConfigurationValidator
 
     private static void ValidateSelector(DirectorySelector selector, bool exclusion)
     {
+        if (selector.PreserveDirectoryOnly && !exclusion)
+        {
+            throw new ArgumentException("Directory preservation is only supported for exclusions.");
+        }
+
         if (selector.MatchFullPath && (!exclusion || selector.Kind != SelectorKind.Regex))
         {
             throw new ArgumentException("Full-path matching is only supported for regex exclusions.");

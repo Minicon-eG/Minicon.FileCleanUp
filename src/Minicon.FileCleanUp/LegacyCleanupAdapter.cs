@@ -53,9 +53,12 @@ internal static class LegacyCleanupAdapter
             }
 
             var exclusions = (legacy.IgnoreSubdirectories ?? [])
-                .Concat(legacy.DeleteExclusions?.Directories ?? []);
-            foreach (var exclusion in exclusions)
+                .Select(pattern => (Pattern: pattern, PreserveOnly: false))
+                .Concat((legacy.DeleteExclusions?.Directories ?? [])
+                    .Select(pattern => (Pattern: pattern, PreserveOnly: true)));
+            foreach (var entry in exclusions)
             {
+                var exclusion = entry.Pattern;
                 if (string.IsNullOrWhiteSpace(exclusion))
                 {
                     throw new ArgumentException("An exclusion must not be empty.");
@@ -73,7 +76,8 @@ internal static class LegacyCleanupAdapter
                 {
                     Kind = SelectorKind.Regex,
                     MatchFullPath = true,
-                    Pattern = expression + "(?:/.*)?"
+                    PreserveDirectoryOnly = entry.PreserveOnly,
+                    Pattern = entry.PreserveOnly ? expression : expression + "(?:/.*)?"
                 });
             }
 
