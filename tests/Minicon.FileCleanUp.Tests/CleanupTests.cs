@@ -35,6 +35,55 @@ public class CleanupTests
 
         ]
     };
+    [Theory]
+    [InlineData(0, CleanupStatus.Succeeded)]
+    [InlineData(-1, CleanupStatus.InvalidConfiguration)]
+    [InlineData(86401, CleanupStatus.InvalidConfiguration)]
+    public async Task Progress_interval_can_be_disabled_and_rejects_invalid_values(
+        int interval, CleanupStatus expected)
+    {
+        var options = Options();
+        options.ProgressIntervalSeconds = interval;
+        var time = new FakeTimeProvider(Now);
+        var logger = new RecordingLogger<FileCleanUpService>();
+        var result = await new FileCleanUpService(options, Files(), time, logger: logger).RunAsync();
+        time.Advance(TimeSpan.FromDays(2));
+        Assert.Equal(expected, result.Status);
+        Assert.DoesNotContain(logger.Events, e => Equals(e.GetValueOrDefault("EventType"), "CleanupProgress"));
+    }
+
+    [Theory]
+    [InlineData(60)]
+    [InlineData(10)]
+    public async Task Progress_reports_during_wait_and_stops_after_completion(int interval)
+    {
+        var options = Options(false);
+        options.ProgressIntervalSeconds = interval;
+        options.DeleteDelayMilliseconds = interval * 2000;
+        var time = new FakeTimeProvider(Now);
+        var logger = new RecordingLogger<FileCleanUpService>();
+        var fs = Files();
+        fs.AddFile(Path.Combine(Root, "second.csv"), new MockFileData("old")
+        {
+            LastWriteTime = new DateTimeOffset(2026, 5, 1, 0, 0, 0, TimeSpan.Zero)
+        });
+        var run = new FileCleanUpService(options, fs, time, logger: logger).RunAsync();
+
+        time.Advance(TimeSpan.FromSeconds(interval));
+
+        var progress = Assert.Single(logger.Events,
+            e => Equals(e.GetValueOrDefault("EventType"), "CleanupProgress"));
+        Assert.Equal("Exports", progress["RuleName"]);
+        Assert.StartsWith(Root, (string)progress["Path"]!);
+        Assert.Equal(2L, progress["CandidateFiles"]);
+        Assert.False(run.IsCompleted);
+        time.Advance(TimeSpan.FromSeconds(interval));
+        await run;
+        var count = logger.Events.Count;
+        time.Advance(TimeSpan.FromMinutes(5));
+        Assert.Equal(count, logger.Events.Count);
+    }
+
     [Fact]
     public async Task Recent_file_trace_explains_the_timestamp_and_cutoff()
     {

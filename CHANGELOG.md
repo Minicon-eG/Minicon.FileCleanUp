@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0 — 2026-09-15
+
+Add configurable periodic CleanupProgress messages at Information level.
+- Default interval: 60 seconds; ProgressIntervalSeconds supports 1–86400 seconds, or 0 to disable.
+- Report run/time, current rule/path/phase, scanned/candidate/deleted files, errors and retries.
+- Use immutable snapshots and an independent TimeProvider timer so messages continue while filesystem calls wait.
+- Stop and drain the timer before completion; progress is diagnostic, not proof of forward movement.
+- Update offline documentation.
+
+Validation: 102 tests; package, host and Windows storage acceptance gate publication.
+
 ## 1.2.2 — 2026-09-15
 
 Detailed logging for Console and Seq:

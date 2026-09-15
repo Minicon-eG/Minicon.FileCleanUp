@@ -6,7 +6,8 @@ internal static class ConfigurationValidator
 {
     internal static void Validate(CleanupOptions options, IFileSystem fs)
     {
-        if (options.MinimumRetentionDays < 1
+        if (options.ProgressIntervalSeconds is < 0 or > 86400
+            || options.MinimumRetentionDays < 1
             || options.MaxFilesToDeletePerRun < 1
             || options.DeleteDelayMilliseconds < 0
             || options.Resilience.MaxAttempts < 1

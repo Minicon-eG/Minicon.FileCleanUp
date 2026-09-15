@@ -24,6 +24,24 @@ internal sealed class CleanupRun(
     private readonly HashSet<string> unavailableScopes = new(ConfigurationValidator.Comparer);
     private ICleanupAuditJournal? journal;
     private bool auditFailed;
+    private CleanupProgressReporter? progress;
+    private ITimer? progressTimer;
+    private string? progressPath;
+    private string progressPhase = "Starting";
+
+    private void UpdateProgress(string? path = null, string? phase = null)
+    {
+        if (path is not null)
+        {
+            progressPath = path;
+        }
+        if (phase is not null)
+        {
+            progressPhase = phase;
+        }
+        progress?.Update(currentRule?.Name, progressPath, progressPhase, result.Statistics);
+    }
+
     private long runStart;
     private double retrySeconds;
     private bool attemptedMutation;
@@ -46,6 +64,13 @@ internal sealed class CleanupRun(
                 result.Status = CleanupStatus.InvalidConfiguration;
                 Event("ConfigurationInvalid", 3002, ex);
                 return result;
+            }
+
+            if (logger is not null && options.ProgressIntervalSeconds > 0)
+            {
+                progress = new CleanupProgressReporter(logger, clock, result.RunId, result.StartedUtc, options.DryRun);
+                var interval = TimeSpan.FromSeconds(options.ProgressIntervalSeconds);
+                progressTimer = clock.CreateTimer(progress.Report, null, interval, interval);
             }
 
             foreach (var rule in options.Rules)
@@ -152,6 +177,10 @@ internal sealed class CleanupRun(
         }
         finally
         {
+            if (progressTimer is not null)
+            {
+                await progressTimer.DisposeAsync();
+            }
             result.CompletedUtc = clock.GetUtcNow();
             result.Duration = clock.GetElapsedTime(runStart);
             result.IsPartial = result.Status != CleanupStatus.Succeeded;
@@ -724,6 +753,7 @@ internal sealed class CleanupRun(
 
     private async Task DelayMutation()
     {
+        UpdateProgress(phase: "DeleteDelay");
         token.ThrowIfCancellationRequested();
         if (attemptedMutation
             && options.DeleteDelayMilliseconds > 0)
@@ -744,6 +774,7 @@ internal sealed class CleanupRun(
 
     private async Task<T> Read<T>(Func<T> operation, string path, bool missingRoot = false, bool mutation = false)
     {
+        UpdateProgress(path, mutation ? "Deleting" : "ReadingFileSystem");
         long? started = null;
         try
         {
@@ -871,6 +902,7 @@ internal sealed class CleanupRun(
     private void Count(Action<CleanupStatistics> update)
     {
         update(result.Statistics);
+        UpdateProgress();
         if (currentRule is null)
         {
             return;
@@ -909,6 +941,7 @@ internal sealed class CleanupRun(
             return;
         }
 
+        UpdateProgress(path, type);
         var properties = new Dictionary<string, object?>
         {
             ["{OriginalFormat}"] = "{EventType}: {Path}",
