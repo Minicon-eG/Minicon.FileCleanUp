@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.0 — 2026-09-15
+## 1.2.1 — 2026-09-15
 
 - Add host-owned asynchronous legacy JSON rule-provider integration without a database dependency.
 - Map existing source directories, wildcard paths, filename filters, exclusions, recursion and timestamp flags.

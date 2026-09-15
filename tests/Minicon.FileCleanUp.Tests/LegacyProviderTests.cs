@@ -88,7 +88,7 @@ public class LegacyProviderTests
             MaxAgeInDays = 30,
             Recursive = true,
             CheckDates = 7,
-            IgnoreSubdirectories = new[] { "*/R*S/*" },
+            IgnoreSubdirectories = new[] { Path.Combine(root, "R*S", "*") },
             DeleteExclusions = new { Files = new[] { "status.log" } }
         });
 
