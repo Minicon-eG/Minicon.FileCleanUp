@@ -39,3 +39,5 @@ NuGet package versions cannot be overwritten. If a retry reports an existing ver
 Run `Publish NuGet release` manually on `main` with `dry_run=true` (the default). This runs the build and acceptance checks and performs a real NuGet OIDC login, but skips the package upload. It verifies the Trusted Publishing policy without consuming a new package version. It does not test the release event or NuGet upload/indexing.
 
 For a manual production retry, select the matching version tag and explicitly set `dry_run=false`. Published GitHub releases always take the production path.
+
+For a workflow-only repair, dispatch the corrected workflow on `main`, set `release_tag` to the existing release tag, and set `dry_run=false`. Checkout and version validation use that tag; the tag and package source remain immutable. Version lookup selects the Version XML element explicitly even when the project has multiple PropertyGroup elements.

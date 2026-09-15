@@ -4,6 +4,11 @@ on:
     types: [published]
   workflow_dispatch:
     inputs:
+      release_tag:
+        description: 'Optional existing release tag to publish using this workflow revision'
+        type: string
+        default: ''
+        required: false
       dry_run:
         description: 'Test build, acceptance and NuGet login without uploading a package'
         type: boolean
@@ -24,15 +29,16 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.ref }}
       - name: Validate release tag and NuGet identity
         shell: pwsh
         env:
-          RELEASE_REF: ${{ github.ref }}
+          RELEASE_REF: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
           NUGET_USER: ${{ vars.NUGET_USER }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: |
           [xml]$project = Get-Content src/Minicon.FileCleanUp/Minicon.FileCleanUp.csproj
-          $version = [string]$project.Project.PropertyGroup.Version
+          $version = $project.SelectSingleNode("/Project/PropertyGroup/Version").InnerText.Trim()
           if ($env:DRY_RUN -ne "true" -and $env:RELEASE_REF -ne "refs/tags/v$version") { throw 'Run this workflow on the matching version tag, never a branch.' }
           if ([string]::IsNullOrWhiteSpace($env:NUGET_USER)) { throw 'Set the NUGET_USER repository variable to the NuGet.org profile name and configure Trusted Publishing.' }
           "RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
