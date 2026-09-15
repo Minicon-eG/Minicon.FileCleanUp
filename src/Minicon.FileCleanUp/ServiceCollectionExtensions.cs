@@ -14,7 +14,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(section);
         return Register(
             services,
-            () => section.Get<CleanupOptions>(o => o.ErrorOnUnknownConfiguration = true) ?? new());
+            () => CleanupConfigurationBinding.Read(section));
     }
 
     public static IServiceCollection AddFileCleanUp(this IServiceCollection services, CleanupOptions options)
