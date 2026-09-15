@@ -42,6 +42,14 @@ internal static class ConfigurationValidator
                 throw new ArgumentException("RemoveEmptyDirectories requires Recursive.");
             }
 
+            const CheckDates supportedDates = CheckDates.CreationTimeUtc
+                | CheckDates.LastWriteTimeUtc
+                | CheckDates.LastAccessTimeUtc;
+            if (rule.CheckDates == CheckDates.None || (rule.CheckDates & ~supportedDates) != 0)
+            {
+                throw new ArgumentException("CheckDates must select at least one supported timestamp.");
+            }
+
             if (rule.Timestamp != "LastWriteTimeUtc"
                 || rule.IncludePatterns.Count == 0)
             {

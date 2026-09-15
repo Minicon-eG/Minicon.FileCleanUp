@@ -2,6 +2,7 @@ namespace Minicon.FileCleanUp;
 
 public sealed class CleanupRuleOptions
 {
+    public CheckDates CheckDates { get; set; } = CheckDates.LastWriteTimeUtc;
     public string Timestamp { get; set; } = "LastWriteTimeUtc";
     public List<string> IncludePatterns { get; set; } = ["*"];
     public List<string> ExcludePatterns { get; set; } = [];

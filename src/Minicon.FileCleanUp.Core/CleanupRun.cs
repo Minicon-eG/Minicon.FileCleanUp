@@ -346,6 +346,20 @@ internal sealed class CleanupRun(
         }
     }
 
+    private FileTimestampSnapshot ReadTimestamps(string path, CheckDates selection)
+    {
+        // Always track writes for mutation revalidation, even when retention uses other dates.
+        var lastWrite = fs.File.GetLastWriteTimeUtc(path);
+        DateTime? creation = selection.HasFlag(CheckDates.CreationTimeUtc)
+            ? fs.File.GetCreationTimeUtc(path)
+            : null;
+        DateTime? lastAccess = selection.HasFlag(CheckDates.LastAccessTimeUtc)
+            ? fs.File.GetLastAccessTimeUtc(path)
+            : null;
+
+        return new FileTimestampSnapshot(creation, lastWrite, lastAccess);
+    }
+
     private async Task ProcessFile(string path, Target target)
     {
         Count(s => s.FilesScanned++);
@@ -371,9 +385,9 @@ internal sealed class CleanupRun(
             return;
         }
 
-        var observed = await Read(() => fs.File.GetLastWriteTimeUtc(path), path);
+        var observed = await Read(() => ReadTimestamps(path, target.Rule.CheckDates), path);
         var cutoff = RetentionPolicy.Cutoff(result.StartedUtc, target.Rule.RetentionDays);
-        if (!RetentionPolicy.IsExpired(observed, cutoff))
+        if (!RetentionPolicy.IsExpired(observed.LatestSelected(target.Rule.CheckDates), cutoff))
         {
             Skip(path, "TooRecent");
             return;
@@ -390,7 +404,11 @@ internal sealed class CleanupRun(
             Path = path,
             RuleName = target.Rule.Name,
             Reason = "OlderThanRetention",
-            EvaluatedTimestampUtc = observed,
+            EvaluatedTimestampUtc = observed.LatestSelected(target.Rule.CheckDates),
+            CheckedDates = target.Rule.CheckDates,
+            EvaluatedCreationTimeUtc = observed.CreationTimeUtc,
+            EvaluatedLastWriteTimeUtc = observed.LastWriteTimeUtc,
+            EvaluatedLastAccessTimeUtc = observed.LastAccessTimeUtc,
             CutoffUtc = cutoff,
             FileSizeBytes = bytes,
             TimestampUtc = clock.GetUtcNow()
@@ -412,7 +430,7 @@ internal sealed class CleanupRun(
             return true;
         },
             path);
-        var updated = await Read(() => fs.File.GetLastWriteTimeUtc(path), path);
+        var updated = await Read(() => ReadTimestamps(path, target.Rule.CheckDates), path);
         if (updated != observed)
         {
             Skip(path, "ChangedSinceEvaluation");
@@ -428,7 +446,7 @@ internal sealed class CleanupRun(
             return true;
         },
             path);
-        updated = await Read(() => fs.File.GetLastWriteTimeUtc(path), path);
+        updated = await Read(() => ReadTimestamps(path, target.Rule.CheckDates), path);
         attributes = await Read(() => fs.File.GetAttributes(path), path);
         if (updated != observed
             || (await Read(() => fs.FileInfo.New(path).Length, path) != bytes)
@@ -451,7 +469,7 @@ internal sealed class CleanupRun(
                 if (attempt++ > 0)
                 {
                     EnsureSafePath(fs.Path.GetDirectoryName(path)!);
-                    if (fs.File.GetLastWriteTimeUtc(path) != observed
+                    if (ReadTimestamps(path, target.Rule.CheckDates) != observed
                         || (fs.FileInfo.New(path).Length != bytes)
                         || (fs.File.GetAttributes(path) & (FileAttributes.ReadOnly | FileAttributes.ReparsePoint)) != 0)
                     {
@@ -870,7 +888,10 @@ internal sealed class CleanupRun(
             ["EvaluatedTimestampUtc"] = record?.EvaluatedTimestampUtc,
             ["CutoffUtc"] = record?.CutoffUtc,
             ["FileSizeBytes"] = record?.FileSizeBytes,
-            ["TimestampBasis"] = currentRule?.Timestamp,
+            ["TimestampBasis"] = currentRule?.CheckDates.ToString(),
+            ["EvaluatedCreationTimeUtc"] = record?.EvaluatedCreationTimeUtc,
+            ["EvaluatedLastWriteTimeUtc"] = record?.EvaluatedLastWriteTimeUtc,
+            ["EvaluatedLastAccessTimeUtc"] = record?.EvaluatedLastAccessTimeUtc,
             ["RetentionDays"] = currentRule?.RetentionDays,
             ["Status"] = result.Status.ToString(),
             ["CandidateFiles"] = result.Statistics.CandidateFiles,

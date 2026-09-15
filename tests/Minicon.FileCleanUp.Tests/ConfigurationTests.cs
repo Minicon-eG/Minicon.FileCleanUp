@@ -113,6 +113,7 @@ public class ConfigurationTests
             ["FileCleanUp:Rules:0:Name"] = "Test",
             ["FileCleanUp:Rules:0:RetentionDays"] = "90",
             ["FileCleanUp:Rules:0:Timestamp"] = "LastWriteTimeUtc",
+            ["FileCleanUp:Rules:0:CheckDates"] = "CreationTimeUtc, LastWriteTimeUtc, LastAccessTimeUtc",
             ["FileCleanUp:Rules:0:Directories:0:Root"] = root
         };
         var config = new ConfigurationBuilder().AddInMemoryCollection(values).Build();

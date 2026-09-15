@@ -10,6 +10,10 @@ public sealed record AuditRecord
     public int AttemptNumber { get; init; } = 1;
     public string? RuleName { get; init; }
     public DateTimeOffset? CutoffUtc { get; init; }
+    public CheckDates? CheckedDates { get; init; }
+    public DateTimeOffset? EvaluatedCreationTimeUtc { get; init; }
+    public DateTimeOffset? EvaluatedLastWriteTimeUtc { get; init; }
+    public DateTimeOffset? EvaluatedLastAccessTimeUtc { get; init; }
     public DateTimeOffset? EvaluatedTimestampUtc { get; init; }
     public long? FileSizeBytes { get; init; }
     public string? Operator { get; init; }
