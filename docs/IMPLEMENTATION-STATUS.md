@@ -1,8 +1,11 @@
-# Implementation status — 1.1.0
+# Implementation status — 1.2.0
 
-This file records the scope of the 1.1.0 package release. Customer-specific Windows, share, identity and Seq acceptance is a deployment responsibility, separate from the package release. Documented extensions are not part of the 1.1.0 contract.
+This file records the scope of the 1.2.0 package release. Customer-specific Windows, share, identity and Seq acceptance is a deployment responsibility, separate from the package release. Documented extensions are not part of the 1.2.0 contract.
 
 ## Implemented
+
+- Legacy JSON rule-provider adapter, wildcard source/exclusion mapping and fixed MaxAgeDateTime cutoff combined with minimum age and retention.
+- 95 local automated tests and fresh package-consumer checks passed for 1.2.0. Windows acceptance is enforced by the publishing workflow.
 
 - Legacy global aliases and CheckDates flags with AND semantics, timestamp revalidation and detailed audit values.
 - Four source assemblies shipped in one NuGet package, preserving existing public namespaces through forwarding.
@@ -15,7 +18,7 @@ This file records the scope of the 1.1.0 package release. Customer-specific Wind
 - Per-run and per-rule statistics, correlated structured logging and Seq sample integration.
 - Local exclusive journal with framed records, SHA-256 chain checks, flush-to-disk requests, pending-path protection on restart and explicit recovery acknowledgement.
 - NuGet packing, offline HTML copy for build/publish and an opt-out; real fresh-consumer package smoke test.
-- 82 tests, fresh package installation and process-kill acceptance passed on Windows/Linux/macOS. Windows SMB/restart, lock, ACL and junction acceptance also passed: [verified CI run](https://github.com/Minicon-eG/Minicon.FileCleanUp/actions/runs/34949197533). CodeQL completed successfully on the same code revision.
+- Prior 1.1.0 baseline: 82 tests, fresh package installation and process-kill acceptance passed on Windows/Linux/macOS. Windows SMB/restart, lock, ACL and junction acceptance also passed: [verified CI run](https://github.com/Minicon-eG/Minicon.FileCleanUp/actions/runs/34949197533). CodeQL completed successfully on the same code revision.
 
 ## Production hardening delivered
 
@@ -36,7 +39,7 @@ This file records the scope of the 1.1.0 package release. Customer-specific Wind
 - Path-based deletion is not a file-identity transaction. No distributed lock, rollback or protection against hostile concurrent path replacement is claimed.
 - Detailed additional target-concept events such as JournalId/JournalSequence in Seq and automatic missing-file reconciliation are not implemented. The HTML distinguishes delivered behavior from these extensions.
 - Publication status is available on NuGet.org. Customer production deployment is not certified by package publication.
-- The full legacy FileCleanUpSetting provider adapter, MaxAgeDateTime and absolute-path legacy exclusion conversion are not implemented.
+- Legacy JSON integration requires a host-owned callback. Database access and provider retries remain in the host.
 
 ## How to evaluate
 
